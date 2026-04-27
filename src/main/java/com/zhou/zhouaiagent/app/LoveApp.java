@@ -137,5 +137,22 @@ public class LoveApp {
     @Resource
     private Advisor loveAppRagCloudAdvisor;
 
-
+    /**
+     * 基于云知识库的RAG检索增强服务
+     * @param message
+     * @param chatId
+     * @return
+     */
+    public String doChatWithRagByCloud(String message, String chatId) {
+        ChatResponse chatResponse = chatClient.prompt()
+                .user(message)
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                // 应用 RAG 检索增强服务（基于云知识库服务）
+                .advisors(loveAppRagCloudAdvisor)
+                .call()
+                .chatResponse();
+        String content = chatResponse.getResult().getOutput().getText();
+        log.info("content: {}", content);
+        return content;
+    }
 }

@@ -29,7 +29,7 @@ public class LoveAppVectorStoreConfig {
     }
 
     @Bean
-    public QuestionAnswerAdvisor questionAnswerAdvisor(EmbeddingModel dashscopeEmbeddingModel) {
-        return new QuestionAnswerAdvisor(simpleVectorStore(dashscopeEmbeddingModel));
+    public QuestionAnswerAdvisor questionAnswerAdvisor(EmbeddingModel dashScopeEmbeddingModel) {
+        return new QuestionAnswerAdvisor(simpleVectorStore(dashScopeEmbeddingModel));
     }
 }

@@ -33,7 +33,7 @@ public class LoveAppDocumentLoader {
     public List<Document> loadMarkdowns() {
         List<Document> allDocuments = new ArrayList<>();
         try {
-            Resource[] resources = resourcePatternResolver.getResources("");
+            Resource[] resources = resourcePatternResolver.getResources("classpath:document/*.md");
             for (Resource resource : resources) {
                 String filename = resource.getFilename();
                 MarkdownDocumentReaderConfig config = MarkdownDocumentReaderConfig.builder()

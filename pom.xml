@@ -85,6 +85,12 @@
 <!--            <artifactId>hutool-all</artifactId>-->
 <!--            <version>5.8.37</version>-->
 <!--        </dependency>-->
+
+        <!--加载md文档-->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-markdown-document-reader</artifactId>
+        </dependency>
 <!--        接口文档-->
         <dependency>
             <groupId>com.github.xiaoymin</groupId>

@@ -1,11 +1,15 @@
 package com.zhou.zhouaiagent.app;
 
+import com.alibaba.cloud.ai.advisor.RetrievalRerankAdvisor;
 import com.zhou.zhouaiagent.advisor.MyLoggerAdvisor;
+import com.zhou.zhouaiagent.rag.LoveAppRagCloudAdvisorConfig;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 
+import org.springframework.ai.chat.client.advisor.api.Advisor;
+import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
@@ -14,6 +18,9 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.ai.vectorstore.SimpleVectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -88,4 +95,47 @@ public class LoveApp {
                 .call()
                 .entity(LoveReport.class);
     }
+
+    @Resource
+    private SimpleVectorStore simpleVectorStore;
+    @Resource
+    private QuestionAnswerAdvisor questionAnswerAdvisor;
+
+    /**
+     * QuestionAnswerAdvisor
+     *      做简单内部知识库 / 小问答机器人。
+     *      快速验证 RAG 效果，不想写太多配置。
+     *      需求固定：“查 3 条相似文档，直接回答”。
+     * RetrievalAugmentationAdvisor
+     *      企业级知识库：需要高准确率、低幻觉。
+     *      问题模糊 / 简短：需要改写 / 扩展才能检索到好结果。
+     *      检索结果噪声多：需要重排、过滤、去重。
+     *      要实现高级 RAG：如 Multi-Query、RAG-Fusion、HyDE、Step-back Prompting。
+     *
+     * QuestionAnswerAdvisor：简单够用、开箱即用，适合快速开发简单 RAG 应用。
+     * RetrievalAugmentationAdvisor：强大灵活、全链路可控，适合企业级、高精度、复杂 RAG 场景。
+     *
+     * 基于内存向量存储的简易知识库问答
+     * @param message
+     * @param chatId
+     * @return
+     */
+    public String doChatWithRagByInMemory(String message, String chatId) {
+        ChatResponse chatResponse = chatClient.prompt()
+                .user(message)
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                //.advisors(questionAnswerAdvisor)
+                // 应用 RAG 知识库问答
+                .advisors(new QuestionAnswerAdvisor(simpleVectorStore))
+                .call()
+                .chatResponse();
+        String content = chatResponse.getResult().getOutput().getText();
+        log.info("content: {}", content);
+        return content;
+    }
+
+    @Resource
+    private Advisor loveAppRagCloudAdvisor;
+
+
 }

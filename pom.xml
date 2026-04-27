@@ -111,6 +111,29 @@
             <version>5.6.2</version>
         </dependency>
 
+        <!-- https://docs.spring.io/spring-ai/reference/api/vectordbs/pgvector.html#_manual_configuration -->
+        <!-- 手动整合 PGVector 向量存储 (内存向量存储无法持久化, 和自动整合效果相同, 任选其一)-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-pgvector-store</artifactId>
+        </dependency>
+
+        <!-- https://docs.spring.io/spring-ai/reference/api/vectordbs/pgvector.html#_auto_configuration -->
+        <!-- 自动整合 PGVector 向量存储 -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

@@ -10,6 +10,20 @@ spring:
       chat:
         options:
           model: qwen-plus
+    vectorstore:
+      pgvector:
+      index-type: HNSW
+      distance-type: COSINE_DISTANCE
+      # 如果不确定维度数可以不指定, 不给会默认根据实际维度数指定维度数量
+      # 表一旦建好就不能更改维度值了, 最好在之前确认好模型维度
+      dimensions: 1536
+      max-document-batch-size: 10000 # Optional: Maximum number of documents per batch
+  datasource:
+    # 使用的本地docker创建的镜像, 端口默认5432, 映射为5433
+    url: jdbc:postgresql://localhost:5433/zhou_ai_agent
+    username: postgres
+    password: postgres
+
 server:
   port: 8123
   servlet:

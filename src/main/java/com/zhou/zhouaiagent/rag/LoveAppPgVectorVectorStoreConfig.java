@@ -33,6 +33,9 @@ public class LoveAppPgVectorVectorStoreConfig {
     //@Autowired
     private VectorStore vectorStore;
 
+    @Resource
+    private MyKeywordEnricher myKeywordEnricher;
+
     /**
      * 手动配置 需要自己显式配置
      * @param jdbcTemplate
@@ -53,7 +56,11 @@ public class LoveAppPgVectorVectorStoreConfig {
         // 加载一次就够了, 不然会重复
         // 加载文档
         List<Document> documents = loveAppDocumentLoader.loadMarkdowns();
-        vectorStore.add(documents);
+        // 为文档补充元信息 (可能会有英文)
+        // {"title": "如何提升自身魅力吸引潜在伴侣？", "category": "header_4", "filename": "恋爱常见问题和回答 - 单身篇.md", "excerpt_keywords": "personal grooming, confidence building, social skills, style development, holistic self-improvement"}
+        // {"title": "线上交友有哪些注意事项能提高脱单成功率？", "category": "header_4", "filename": "恋爱常见问题和回答 - 单身篇.md", "excerpt_keywords": "线上交友,个人资料优化,聊天技巧,隐私保护,脱单指南"}
+        List<Document> enrichDocuments = myKeywordEnricher.enrichDocuments(documents);
+        vectorStore.add(enrichDocuments);
         return vectorStore;
     }
 }

@@ -86,4 +86,13 @@ class LoveAppTest {
         String answer = loveApp.doChatWithRagByCloud(message, chatId);
         Assertions.assertNotNull(answer);
     }
+
+    @Test
+    void doChatWithRagByCustom() {
+        String chatId = UUID.randomUUID().toString();
+        String message = "我已经结婚了，但是婚后关系不太亲密，怎么办？";
+        // 婚后夫妻亲密关系疏远的改善方法包括：定期安排二人世界，如每周一次看电影或共进晚餐；保持身体亲密接触，日常拥抱、亲吻；分享日常喜怒哀乐，深入交流内心想法；一起回忆美好过往，如旅行经历、恋爱趣事；为对方制造小惊喜，如纪念日礼物。参考老张夫妇的做法，坚持每周约会、分享生活点滴，结婚多年仍甜蜜如初。推荐学习课程《婚后亲密关系维护秘籍》，系统掌握持续升温爱情、守护家庭幸福的方法与技巧。
+        String answer = loveApp.doChatWithRagByCustom(message, chatId);
+        Assertions.assertNotNull(answer);
+    }
 }

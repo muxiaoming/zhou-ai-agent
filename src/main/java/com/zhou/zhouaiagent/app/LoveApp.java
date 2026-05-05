@@ -21,6 +21,8 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.ai.support.ToolCallbacks;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +54,7 @@ public class LoveApp {
     public LoveApp(ChatModel dashScopeChatModel) {
         MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder()
                 // 初始化基于内存的对话记忆
+                // 可重写 ChatMemoryRepository, 其他基于文件或者数据库的对话记忆
                 .chatMemoryRepository(new InMemoryChatMemoryRepository())
                 // 记忆的最大消息数
                 // maxMessages (2) = 记住最近 2 条消息（用户 + AI 各一条，凑一对）+ 再加上用户的输入, 查看日志可看到此时相当于有三条消息
@@ -106,19 +109,20 @@ public class LoveApp {
 
     /**
      * QuestionAnswerAdvisor
-     *      做简单内部知识库 / 小问答机器人。
-     *      快速验证 RAG 效果，不想写太多配置。
-     *      需求固定：“查 3 条相似文档，直接回答”。
+     * 做简单内部知识库 / 小问答机器人。
+     * 快速验证 RAG 效果，不想写太多配置。
+     * 需求固定：“查 3 条相似文档，直接回答”。
      * RetrievalAugmentationAdvisor
-     *      企业级知识库：需要高准确率、低幻觉。
-     *      问题模糊 / 简短：需要改写 / 扩展才能检索到好结果。
-     *      检索结果噪声多：需要重排、过滤、去重。
-     *      要实现高级 RAG：如 Multi-Query、RAG-Fusion、HyDE、Step-back Prompting。
-     *
+     * 企业级知识库：需要高准确率、低幻觉。
+     * 问题模糊 / 简短：需要改写 / 扩展才能检索到好结果。
+     * 检索结果噪声多：需要重排、过滤、去重。
+     * 要实现高级 RAG：如 Multi-Query、RAG-Fusion、HyDE、Step-back Prompting。
+     * <p>
      * QuestionAnswerAdvisor：简单够用、开箱即用，适合快速开发简单 RAG 应用。
      * RetrievalAugmentationAdvisor：强大灵活、全链路可控，适合企业级、高精度、复杂 RAG 场景。
-     *
+     * <p>
      * 基于内存向量存储的简易知识库问答
+     *
      * @param message
      * @param chatId
      * @return
@@ -142,6 +146,7 @@ public class LoveApp {
 
     /**
      * 基于云知识库的RAG检索增强服务
+     *
      * @param message
      * @param chatId
      * @return
@@ -167,7 +172,8 @@ public class LoveApp {
 
     /**
      * 应用自定义的 RAG 检索增强服务（文档查询器 + 上下文增强器）
-     *  使用 PgVector
+     * 使用 PgVector
+     *
      * @param message
      * @param chatId
      * @return
@@ -188,6 +194,31 @@ public class LoveApp {
                                 pgVectorVectorStore, "已婚"
                         )
                 )
+                .call()
+                .chatResponse();
+        String content = chatResponse.getResult().getOutput().getText();
+        log.info("content: {}", content);
+        return content;
+    }
+
+    // AI 调用工具能力
+    @Resource
+    private ToolCallback[] allTools;
+
+    /**
+     * 工具调用
+     *
+     * @param message
+     * @param chatId
+     * @return
+     */
+    public String doChatWithTools(String message, String chatId) {
+
+        //String queryRewrite = queryRewriter.doQueryRewrite(message);
+        ChatResponse chatResponse = chatClient.prompt()
+                .user(message)
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                .toolCallbacks(allTools)
                 .call()
                 .chatResponse();
         String content = chatResponse.getResult().getOutput().getText();

@@ -2,7 +2,10 @@ spring:
   application:
     name: zhou-image-search-mcp-server
   profiles:
-    active: stdio
+    active: sse
 server:
   port: 8127
 
+# 替换为真实的的 Pexels API 密钥（需从官网申请）
+pexels:
+  apikey: real apikey

@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: zhou-image-search-mcp-server
+  profiles:
+    active: stdio
+server:
+  port: 8127
+

@@ -1,0 +1,17 @@
+spring:
+  ai:
+    mcp:
+      server:
+        name: zhou-image-search-mcp-server
+        version: 0.0.1
+        type: SYNC
+        # stdio
+        stdio: true
+  # stdio
+  main:
+    web-application-type: none
+    banner-mode: off
+
+# 替换为真实的的 Pexels API 密钥（需从官网申请）
+pexels:
+  apikey: real apikey

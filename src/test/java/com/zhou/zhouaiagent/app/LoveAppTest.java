@@ -126,11 +126,17 @@ class LoveAppTest {
     @Test
     void doChatWithMcp() {
 
-        System.out.println("Java PATH: " + System.getenv("PATH"));
         String chatId = UUID.randomUUID().toString();
-        // 测试地图 MCP
-        String message = "我的另一半居住在上海静安区，请帮我找到 5 公里内合适的约会地点";
-        String answer = loveApp.doChatWithMcp(message, chatId);
+//        // 测试地图 MCP
+//        String message = "我的另一半居住在上海静安区，请帮我找到 5 公里内合适的约会地点";
+//        String answer = loveApp.doChatWithMcp(message, chatId);
+//        Assertions.assertNotNull(answer);
+
+        // 测试图片搜索 MCP
+        // @Resource private ToolCallbackProvider toolCallbackProvider;
+        // toolCallbackProvider 会启动 mcp-servers.json里面配置的stdio mcp jar包
+        String message = "帮我搜索一些可爱的猫猫图片用于提高对象好感";
+        String answer =  loveApp.doChatWithMcp(message, chatId);
         Assertions.assertNotNull(answer);
     }
 

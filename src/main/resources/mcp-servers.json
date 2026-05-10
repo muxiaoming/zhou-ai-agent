@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "amap-maps": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "set",
+        "PATH=C:\\nvm4w\\nodejs;%PATH%",
+        "&&",
+        "npx",
+        "-y",
+        "@amap/amap-maps-mcp-server"
+      ],
+      "env": {
+        "AMAP_MAPS_API_KEY": "https://console.amap.com/dev/key/app 高德开放平台创建应用获取apikey"
+      }
+    }
+  }
+}

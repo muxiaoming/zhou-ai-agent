@@ -9,6 +9,11 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * 集中的工具注册类
+ *  MethodToolCallbackProvider 创建的工具类型是 MethodToolCallback (ToolCallback)
+ *  ToolCallback 有4个子类 AsyncMcpToolCallback(异步mcp创建的tool类型)
+ *                        FunctionToolCallback(写函数式接口, 不建议)
+ *                        SyncMcpToolCallback(同步mcp创建的tool类型, 默认同步)
+ *                        MethodToolCallback(当前类创建的tool类型, 使用方式: 方法上加@Tool注解)
  */
 @Configuration
 public class ToolRegistration {

@@ -18,6 +18,13 @@ spring:
       # 表一旦建好就不能更改维度值了, 最好在之前确认好模型维度
       dimensions: 1536
       max-document-batch-size: 10000 # Optional: Maximum number of documents per batch
+    mcp:
+      client:
+        # 标准io(stdio)使用第三方mcp或者自定义mcp server(自己开发)和客户端在同一服务器下,
+        # mcp-servers.json 为mcp配置文件, 启动程序时会开子进程启动mcp, 能用 tool 不用 mcp
+        stdio:
+          servers-configuration: classpath:mcp-servers.json
+
   datasource:
     # 使用的本地docker创建的镜像, 端口默认5432, 映射为5433
     url: jdbc:postgresql://localhost:5433/zhou_ai_agent

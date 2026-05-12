@@ -8,4 +8,4 @@ server:
 
 # 替换为真实的的 Pexels API 密钥（需从官网申请）
 pexels:
-  apikey: real apikey
+  apikey: 7yVVdxNgMs0pHPTTqR8pSw9wRSG57SMMYJpdBOWUAk21Y3QIbv27O5QR

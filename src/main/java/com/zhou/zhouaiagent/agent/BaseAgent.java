@@ -77,7 +77,8 @@ public abstract class BaseAgent {
                 currentStep = stepNumber;
                 log.info("Executing step {}/{}", stepNumber, maxSteps);
                 // 单步执行 (设置最大限制, 循环执行 step, step在ReAct中是 think+act,
-                // step 在ToolCallAgent中是 思考是否执行tool 及 执行 tool)
+                // step 在ToolCallAgent中是 思考是否执行tool 及 执行 tool,
+                // 因为其继承ReActAgent, ToolCallAgent的步骤即为think()与act())
                 String stepResult = step();
                 String result = "Step " + stepNumber + ": " + stepResult;
                 results.add(result);

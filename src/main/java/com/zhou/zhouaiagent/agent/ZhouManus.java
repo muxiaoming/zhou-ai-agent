@@ -8,6 +8,17 @@ import org.springframework.stereotype.Component;
 
 /**
  *  AI 超级智能体（拥有自主规划能力，可以直接使用）
+ *  整个agent核心代码就三块:
+ *      1. BaseAgent agent loop , 有限(最大次数及完成状态, 大模型判断完成或无法继续调用中断方法)循环执行每一步
+ *          将每一步抽象为一个抽象方法 step(), 具体实现由子类agent实现.
+ *          (有限循环执行step()方法)
+ *      2. ReActAgent 实现step方法, 实现逻辑是先思考 think(), 再判断是否需要执行 act()
+ *          只是在step()中实现执行逻辑, think()/act()也是抽象方法, 思考与行动的实现也是由子类agent实现.
+ *          (实现step()方法, 只有执行逻辑但未实现具体思考与行动)
+ *      3. ToolCallAgent 实现了think()/act(), think()调用大模型判断是否需要执行工具调用, act()中手动调用think()中需要执行的工具
+ *          在 ChatOptions 中禁用 Spring AI 内置的工具调用机制后手动调用工具
+ *          think()调用参考 LoveApp#doChatWithTools(), 因需要禁用内置工具调用, 得自己构造Prompt调用ChatClient
+ *          act() 将在think()中需要执行的工具手动控制调用
  */
 @Component
 public class ZhouManus extends ToolCallAgent {

@@ -53,8 +53,17 @@ public class ToolCallAgent extends ReActAgent {
 
     /**
      * 处理当前状态并决定下一步行动
+     *  ToolCallAgent 中的 think() 方法 是调用大模型, 判断是否需要调用工具
+     *  把原本在 LoveApp#doChatWithTools()中由大模型判断是否调用工具,
+     *  并且由SpringAi框架自动调用工具(toolCallbacks(allTools))的链式步骤拆开分为两个部分
+     *  toolCallbacks(allTools)方法依然需要调用, 作用是让大模型知道有哪些工具可调用, 在 ChatOptions 中禁用内置工具调用
+     *  1. think(): 调用大模型, 大模型判断是否需要调用工具
+     *  2. act(): 执行tool调用(大模型判断需要调用的工具) 把原本由框架自动调用的工具 toolCallbacks(allTools)
+     *             DashScopeChatOptions.builder()
+     *                 .withInternalToolExecutionEnabled(false)
+     *                 .build()禁用 Spring AI 内置的工具调用机制后手动调用工具 toolCallingManager.executeToolCalls(prompt, toolCallChatResponse)
      *
-     * @return 是否需要执行行动
+     * @return 是否需要执行行动，true表示需要执行，false表示不需要执行
      */
     @Override
     public boolean think() {
@@ -65,10 +74,14 @@ public class ToolCallAgent extends ReActAgent {
         }
         // 2、调用 AI 大模型，获取工具调用结果
         List<Message> messageList = getMessageList();
+        // 用 Spring AI 内置的工具调用机制, 工具调用于act()中手动控制执行
         Prompt prompt = new Prompt(messageList, this.chatOptions);
         try {
             ChatResponse chatResponse = getChatClient().prompt(prompt)
                     .system(getSystemPrompt())
+                    // 禁用 Spring AI 内置的工具调用机制，自己维护选项和消息上下文
+                    // private final ChatOptions chatOptions;
+                    // 工具调用已禁用, 传入 availableTools 的作用是让大模型知道有哪些工具可调用
                     .toolCallbacks(availableTools)
                     .call()
                     .chatResponse();

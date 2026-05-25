@@ -1,0 +1,57 @@
+# zhou-ai-agent 本地开发环境
+# 启动方式：docker-compose up -d
+# 访问 Langfuse：http://localhost:3000
+
+services:
+  # Langfuse - AI 可观测性平台
+  langfuse:
+    image: langfuse/langfuse:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@langfuse-db:5432/langfuse
+      - NEXTAUTH_SECRET=your-secret-key-change-in-production
+      - NEXTAUTH_URL=http://localhost:3000
+      - SALT=your-salt-change-in-production
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Langfuse 数据库
+  langfuse-db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=langfuse
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - langfuse-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # 项目 PostgreSQL（PgVector + ChatMemory）
+  zhou-ai-agent-db:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_DB=zhou_ai_agent
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - zhou-ai-agent-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  langfuse-db-data:
+  zhou-ai-agent-db-data:

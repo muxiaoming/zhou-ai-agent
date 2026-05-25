@@ -2,6 +2,7 @@ package com.zhou.zhouaiagent.agent;
 
 import cn.hutool.core.util.StrUtil;
 import com.zhou.zhouaiagent.agent.model.AgentState;
+import io.micrometer.observation.annotation.Observed;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -59,6 +60,7 @@ public abstract class BaseAgent {
      * @param userPrompt 用户提示词
      * @return 执行结果
      */
+    @Observed(name = "agent.run", contextualName = "Agent execution")
     public String run(String userPrompt) {
         // 1、基础校验
         if (this.state != AgentState.IDLE) {

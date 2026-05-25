@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.zhou.zhouaiagent.agent.model.AgentState;
+import io.micrometer.observation.annotation.Observed;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
@@ -66,6 +67,7 @@ public class ToolCallAgent extends ReActAgent {
      * @return 是否需要执行行动，true表示需要执行，false表示不需要执行
      */
     @Override
+    @Observed(name = "agent.think", contextualName = "Agent thinking step")
     public boolean think() {
         // 1、校验提示词，拼接用户提示词
         if (StrUtil.isNotBlank(getNextStepPrompt())) {
@@ -122,6 +124,7 @@ public class ToolCallAgent extends ReActAgent {
      * @return 执行结果
      */
     @Override
+    @Observed(name = "agent.act", contextualName = "Agent action step")
     public String act() {
         if (!toolCallChatResponse.hasToolCalls()) {
             return "没有工具需要调用";

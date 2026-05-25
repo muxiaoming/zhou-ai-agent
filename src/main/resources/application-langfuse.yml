@@ -1,0 +1,32 @@
+# Langfuse 可观测性配置
+# 使用方式：启动时添加 --spring.profiles.active=local,langfuse
+
+spring:
+  application:
+    name: zhou-ai-agent
+  ai:
+    chat:
+      observations:
+        log-prompt: true      # 在 tracing 中记录 prompt 内容（默认关闭，出于隐私考虑）
+        log-completion: true  # 在 tracing 中记录 completion 内容（默认关闭）
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0  # 采样率 100%（生产环境可降低）
+  observations:
+    annotations:
+      enabled: true  # 启用 @Observed 注解
+    enable:
+      "http.server.requests": false  # 禁用 Micrometer HTTP server spans（避免重复）
+      "http.client.requests": false  # 禁用 Micrometer HTTP client spans（避免重复）
+
+otel:
+  instrumentation:
+    spring-webmvc:
+      enabled: false  # 禁用 OTel HTTP server spans（避免重复）
+    spring-web:
+      enabled: false  # 禁用 OTel HTTP client spans（避免重复）
+  exporter:
+    otlp:
+      endpoint: http://localhost:4318  # Langfuse OTLP 端点（通过 OpenTelemetry Collector）

@@ -14,9 +14,11 @@ Zhou AI Agent 是一个端到端的 AI 智能体平台，涵盖后端服务、�
 
 - **AI 情感大师** — 多轮对话、流式输出、RAG 知识增强、结构化输出
 - **ZhouManus 智能体** — 自主规划执行的 ReAct 模式 Agent，支持内置工具 + MCP 扩展工具，可自动终止
-- **RAG 系统** — 内存 / 云端 / PGVector 三种向量存储方案，支持查询改写与文档过滤
-- **MCP 协议集成** — 通过 Model Context Protocol 扩展工具能力（图像搜索、高德地图）
-- **SSE 流式响应** — 多种流式输出方式（Flux / ServerSentEvent / SseEmitter）
+- **RAG 系统** — Agentic RAG（查询路由 + 向量检索 + 兜底处理），支持查询改写与文档过滤
+- **MCP 协议集成** — 动态工具发现与热插拔，支持 REST API 和配置文件热加载双模式
+- **记忆持久化** — 基于 JDBC + PostgreSQL 的会话记忆持久化，支持滑动窗口
+- **可观测性** — Langfuse + Micrometer Tracing + OpenTelemetry，追踪 LLM 调用链路
+- **SSE 流式响应** — Flux<String> 线程安全流式输出，兼容 SseEmitter / ServerSentEvent
 
 ## 项目结构
 
@@ -34,6 +36,8 @@ Zhou AI Agent 是一个端到端的 AI 智能体平台，涵盖后端服务、�
 - PGVector（PostgreSQL 向量数据库）
 - Knife4j / OpenAPI 3（API 文档）
 - iTextPDF, Jsoup, Hutool, Kryo
+- Micrometer Tracing + OpenTelemetry（可观测性）
+- Langfuse（AI 可观测性平台）
 
 **前端 Frontend**
 - Vue 3.5, TypeScript, Vite 6
@@ -42,6 +46,10 @@ Zhou AI Agent 是一个端到端的 AI 智能体平台，涵盖后端服务、�
 **MCP Server**
 - Spring Boot 3.4.5, Spring AI MCP Server
 - Pexels API（图像搜索）
+
+**基础设施 Infrastructure**
+- Docker Compose（一键启动 Langfuse + PostgreSQL）
+- PostgreSQL + pgvector（向量存储 + 记忆持久化）
 
 ## 快速开始
 
@@ -97,10 +105,18 @@ mvn spring-boot:run
 | `/api/ai/love_app/chat/sse` | GET | SSE 流式对话（Flux 方式） |
 | `/api/ai/love_app/chat/server_sent_event` | GET | SSE 流式对话（ServerSentEvent 包装） |
 | `/api/ai/love_app/chat/sse_emitter` | GET | SSE 流式对话（SseEmitter 方式） |
-| `/api/ai/manus/chat` | GET | 智能体流式对话（ZhouManus） |
+| `/api/ai/manus/chat` | GET | 智能体流式对话（ZhouManus，SseEmitter） |
+| `/api/ai/manus/chat/flux` | GET | 智能体流式对话（ZhouManus，Flux 推荐） |
+| `/api/mcp/servers` | GET | 列出所有已注册的 MCP Server |
+| `/api/mcp/servers` | POST | 注册新的 MCP Server |
+| `/api/mcp/servers/{name}` | DELETE | 移除 MCP Server |
+| `/api/mcp/servers/refresh` | POST | 从配置文件重新加载 MCP Server |
+| `/api/mcp/servers/tools` | GET | 列出所有可用工具 |
 | `/health` | GET | 健康检查 |
+| `/actuator` | GET | Spring Boot Actuator 端点 |
 
 API 文档访问：`http://localhost:8123/api/swagger-ui.html`（Knife4j）
+Langfuse 可观测性面板：`http://localhost:3000`（docker-compose 启动后）
 
 ## 智能体架构
 
@@ -159,10 +175,139 @@ ZhouManus 采用四层继承架构，实现「思考 → 行动」的自主循�
 
 ## Docker 部署
 
+### 单容器部署
+
 ```bash
 docker build -t zhou-ai-agent .
 docker run -p 8123:8123 zhou-ai-agent
 ```
+
+### 完整环境（含 Langfuse + PostgreSQL）
+
+```bash
+# 启动所有服务（Langfuse + PostgreSQL + pgvector）
+docker-compose up -d
+
+# 服务列表：
+# - Langfuse: http://localhost:3000（可观测性面板）
+# - PostgreSQL (Langfuse): localhost:5432
+# - PostgreSQL (pgvector): localhost:5433
+
+# 停止服务
+docker-compose down
+```
+
+## 核心模块详解
+
+### 记忆持久化（JDBC）
+
+基于 `JdbcChatMemoryRepository` 实现会话记忆的持久化存储，服务重启后会话不丢失。
+
+```
+┌─────────────────────────────────────────────────┐
+│              MessageWindowChatMemory              │
+│          滑动窗口：保留最近 20 条消息              │
+├─────────────────────────────────────────────────┤
+│           JdbcChatMemoryRepository               │
+│   存储：type + content + metadata 三列            │
+│   序列化：Jackson JSON（避免 Kryo 兼容性问题）     │
+├─────────────────────────────────────────────────┤
+│              PostgreSQL + JDBC                   │
+│   自动建表，支持多会话隔离                         │
+└─────────────────────────────────────────────────┘
+```
+
+### MCP 动态工具发现与热插拔
+
+支持运行时动态添加/移除 MCP Server，无需重启服务。
+
+```
+┌─────────────────────────────────────────────────┐
+│              McpServerController                 │
+│   REST API: POST/DELETE/GET /mcp/servers         │
+├─────────────────────────────────────────────────┤
+│              McpToolRegistry                     │
+│   ConcurrentHashMap 管理所有 MCP Server 连接      │
+│   支持 SSE 模式注册和工具发现                      │
+├─────────────────────────────────────────────────┤
+│         DynamicToolCallbackProvider              │
+│   统一管理：内置工具 + MCP 工具 + 动态工具         │
+│   CopyOnWriteArrayList 保证线程安全               │
+├─────────────────────────────────────────────────┤
+│         McpConfigFileWatcher                     │
+│   WatchService 监听 mcp-servers.json 文件变更      │
+│   文件修改时自动刷新 MCP Server 连接               │
+└─────────────────────────────────────────────────┘
+```
+
+### 可观测性（Langfuse）
+
+通过 Micrometer Tracing + OpenTelemetry 追踪 LLM 调用链路。
+
+```
+┌─────────────────────────────────────────────────┐
+│               Langfuse 面板                      │
+│   可视化 Agent 执行链路、Token 消耗、延迟          │
+├─────────────────────────────────────────────────┤
+│           OpenTelemetry OTLP Exporter            │
+│   自动采集 Traces → 发送到 Langfuse               │
+├─────────────────────────────────────────────────┤
+│              @Observed 注解                      │
+│   BaseAgent.run()     → agent.run                │
+│   ToolCallAgent.think() → agent.think            │
+│   ToolCallAgent.act()  → agent.act               │
+└─────────────────────────────────────────────────┘
+```
+
+### Agentic RAG
+
+整合查询路由、向量检索、兜底处理的完整 RAG Pipeline。
+
+```
+┌─────────────────────────────────────────────────┐
+│              QueryRouter                         │
+│   关键词匹配：恋爱/婚姻/感情等 → 走 RAG            │
+│   短文本 + 无问号 → 直接回答                       │
+├─────────────────────────────────────────────────┤
+│       VectorStoreDocumentRetriever               │
+│   语义相似度检索，topK=3，阈值 0.5                 │
+│   基于 PGVector 向量存储                          │
+├─────────────────────────────────────────────────┤
+│              兜底策略                             │
+│   检索为空 → LLM 直接回答                          │
+│   检索有结果 → 构建上下文 → LLM 基于资料回答        │
+└─────────────────────────────────────────────────┘
+```
+
+### Flux 流式处理
+
+统一使用 `Flux<String>` 实现线程安全的流式输出。
+
+```java
+// BaseAgent.runStreamFlux() 核心实现
+Flux.create(sink -> {
+    Schedulers.boundedElastic().schedule(() -> {
+        for (int i = 0; i < maxSteps; i++) {
+            String stepResult = step();
+            sink.next("Step " + (i+1) + ": " + stepResult);
+        }
+        sink.complete();
+    });
+}, FluxSink.OverflowStrategy.BUFFER);
+```
+
+## 面试亮点总结
+
+| 技术点 | 面试问题 | 项目实现 |
+|--------|----------|----------|
+| Agent 架构 | 如何设计一个可扩展的 Agent 系统？ | 四层继承架构：BaseAgent → ReActAgent → ToolCallAgent → ZhouManus |
+| 工具调用 | 如何控制工具调用的时机？ | 禁用 Spring AI 内置机制，think() 判断 + act() 手动执行 |
+| 记忆管理 | 服务重启后会话丢失怎么办？ | JdbcChatMemoryRepository + PostgreSQL 持久化 |
+| MCP 协议 | 如何运行时动态添加工具？ | McpToolRegistry + REST API + 配置文件热加载 |
+| RAG 策略 | 如何提升 RAG 检索效果？ | 查询路由 + 语义检索 + 兜底策略 |
+| 流式输出 | 如何实现线程安全的流式推送？ | Flux.create() + FluxSink + Schedulers.boundedElastic() |
+| 可观测性 | 如何监控 Agent 的 Token 消耗？ | Langfuse + @Observed + OpenTelemetry OTLP |
+| 终止机制 | 如何防止 Agent 无限循环？ | TerminateTool 主动终止 + maxSteps 兜底 |
 
 ## 截图
 

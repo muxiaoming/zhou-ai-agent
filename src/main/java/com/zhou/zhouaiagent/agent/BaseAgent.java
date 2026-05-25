@@ -9,6 +9,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -189,6 +192,60 @@ public abstract class BaseAgent {
             log.info("SSE connection completed");
         });
         return sseEmitter;
+    }
+
+    /**
+     * 运行代理（Flux 流式输出）- 推荐方式
+     * 使用 Flux.create() + FluxSink 实现线程安全的流式推送
+     * 每步 emit 一个事件，支持响应式背压
+     *
+     * @param userPrompt 用户提示词
+     * @return Flux 流式结果
+     */
+    @Observed(name = "agent.runStreamFlux", contextualName = "Agent Flux streaming execution")
+    public Flux<String> runStreamFlux(String userPrompt) {
+        return Flux.create(sink -> {
+            Schedulers.boundedElastic().schedule(() -> {
+                try {
+                    // 1、基础校验
+                    if (this.state != AgentState.IDLE) {
+                        sink.next("错误：无法从状态运行代理：" + this.state);
+                        sink.complete();
+                        return;
+                    }
+                    if (StrUtil.isBlank(userPrompt)) {
+                        sink.next("错误：不能使用空提示词运行代理");
+                        sink.complete();
+                        return;
+                    }
+                    // 2、执行，更改状态
+                    this.state = AgentState.RUNNING;
+                    messageList.add(new UserMessage(userPrompt));
+                    // 3、执行循环
+                    for (int i = 0; i < maxSteps && state != AgentState.FINISHED; i++) {
+                        int stepNumber = i + 1;
+                        currentStep = stepNumber;
+                        log.info("Executing step {}/{}", stepNumber, maxSteps);
+                        String stepResult = step();
+                        String result = "Step " + stepNumber + ": " + stepResult;
+                        sink.next(result);
+                    }
+                    // 检查是否超出步骤限制
+                    if (currentStep >= maxSteps) {
+                        state = AgentState.FINISHED;
+                        sink.next("执行结束：达到最大步骤（" + maxSteps + "）");
+                    }
+                    sink.complete();
+                } catch (Exception e) {
+                    state = AgentState.ERROR;
+                    log.error("error executing agent", e);
+                    sink.next("执行错误：" + e.getMessage());
+                    sink.complete();
+                } finally {
+                    this.cleanup();
+                }
+            });
+        }, FluxSink.OverflowStrategy.BUFFER);
     }
 
     /**

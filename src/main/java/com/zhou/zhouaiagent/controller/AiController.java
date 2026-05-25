@@ -92,16 +92,26 @@ public class AiController {
     }
 
     /**
-     * 流式调用 Manus 超级智能体
+     * 流式调用 Manus 超级智能体（Flux 方式 - 推荐）
+     * 使用 Flux<String> 返回，线程安全，支持响应式背压
      *
-     * @param message
-     * @return
+     * @param message 用户消息
+     * @return Flux 流式结果
+     */
+    @GetMapping(value = "/manus/chat/flux", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> doChatWithManusFlux(String message) {
+        ZhouManus zhouManus = new ZhouManus(allTools, dashscopeChatModel);
+        return zhouManus.runStreamFlux(message);
+    }
+
+    /**
+     * 流式调用 Manus 超级智能体（SseEmitter 方式 - 兼容旧前端）
+     *
+     * @param message 用户消息
+     * @return SseEmitter
      */
     @GetMapping("/manus/chat")
     public SseEmitter doChatWithManus(String message) {
-        // 每次调用都必需要是新的实例, 或者在bean定义上加上 @Scope("prototype")或者@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
-        // 因为spring bean默认是单例的, 不同用户调用时会访问到同一个实例,
-        // 为避免并发问题最好设计成无状态的, 或者实例变量在不同线程下有不同变量副本, 使用ThreadLocal
         ZhouManus zhouManus = new ZhouManus(allTools, dashscopeChatModel);
         return zhouManus.runStream(message);
     }

@@ -2,6 +2,7 @@ package com.zhou.zhouaiagent.app;
 
 import com.alibaba.cloud.ai.advisor.RetrievalRerankAdvisor;
 import com.zhou.zhouaiagent.advisor.MyLoggerAdvisor;
+import com.zhou.zhouaiagent.memory.JdbcChatMemoryRepository;
 import com.zhou.zhouaiagent.rag.LoveAppRagCloudAdvisorConfig;
 import com.zhou.zhouaiagent.rag.LoveAppRagCustomAdvisorFactory;
 import com.zhou.zhouaiagent.rag.QueryRewriter;
@@ -13,7 +14,6 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -53,13 +53,11 @@ public class LoveApp {
              引导用户详述事情经过、对方反应及自身想法，以便给出专属解决方案。
             """;
 
-    public LoveApp(ChatModel dashScopeChatModel) {
+    public LoveApp(ChatModel dashScopeChatModel, org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
+        // 初始化基于 PostgreSQL 的对话记忆（服务重启后会话不丢失）
         MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder()
-                // 初始化基于内存的对话记忆
-                // 可重写 ChatMemoryRepository, 其他基于文件或者数据库的对话记忆
-                .chatMemoryRepository(new InMemoryChatMemoryRepository())
-                // 记忆的最大消息数
-                // maxMessages (2) = 记住最近 2 条消息（用户 + AI 各一条，凑一对）+ 再加上用户的输入, 查看日志可看到此时相当于有三条消息
+                .chatMemoryRepository(new JdbcChatMemoryRepository(jdbcTemplate))
+                // 记忆窗口大小：保留最近 20 条消息
                 .maxMessages(20)
                 .build();
         this.chatClient = ChatClient.builder(dashScopeChatModel)

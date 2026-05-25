@@ -1,0 +1,9 @@
+# 记忆持久化配置（基于 PostgreSQL）
+# 使用方式：启动时添加 --spring.profiles.active=local,pgmemory
+spring:
+  ai:
+    chat:
+      memory:
+        repository: jdbc
+        jdbc:
+          initialize-schema: always

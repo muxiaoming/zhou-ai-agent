@@ -1,10 +1,14 @@
 package com.zhou.zhouaiagent.mcp;
 
+import cn.hutool.json.JSON;
+import cn.hutool.json.JSONObject;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
+import io.modelcontextprotocol.client.transport.ServerParameters;
+import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.spec.McpClientTransport;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
@@ -14,11 +18,12 @@ import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
 /**
  * MCP 工具注册中心
@@ -43,10 +48,10 @@ public class McpToolRegistry {
      */
     private final ConcurrentHashMap<String, List<ToolCallback>> serverTools = new ConcurrentHashMap<>();
 
-    /**
-     * 工具变更监听器
-     */
-    private final List<Consumer<List<ToolCallback>>> toolChangeListeners = new ArrayList<>();
+    @PostConstruct
+    public void init() {
+        refreshFromConfigFile();
+    }
 
     /**
      * 获取所有 MCP 工具（从所有已注册的 Server）
@@ -76,11 +81,54 @@ public class McpToolRegistry {
                 unregisterServer(name);
             }
 
-            log.info("Registering MCP Server: {} at {}", name, url);
+            log.info("Registering MCP Server (SSE): {} at {}", name, url);
 
             // 创建 SSE 传输层
             McpClientTransport transport = HttpClientSseClientTransport.builder(url).build();
 
+            return doRegister(name, transport);
+        } catch (Exception e) {
+            log.error("Failed to register MCP Server: {}", name, e);
+            return false;
+        }
+    }
+
+    /**
+     * 注册 MCP Server（stdio 模式）
+     */
+    public synchronized boolean registerStdioServer(String name, String command, List<String> args, Map<String, String> env) {
+        try {
+            // 如果已存在，先注销
+            if (serverClients.containsKey(name)) {
+                unregisterServer(name);
+            }
+
+            log.info("Registering MCP Server (stdio): {} command: {} args: {}", name, command, args);
+
+            // 构建 ServerParameters
+            ServerParameters.Builder paramsBuilder = ServerParameters.builder(command);
+            if (args != null && !args.isEmpty()) {
+                paramsBuilder.args(args);
+            }
+            if (env != null && !env.isEmpty()) {
+                paramsBuilder.env(env);
+            }
+
+            // 创建 stdio 传输层
+            McpClientTransport transport = new StdioClientTransport(paramsBuilder.build());
+
+            return doRegister(name, transport);
+        } catch (Exception e) {
+            log.error("Failed to register stdio MCP Server: {}", name, e);
+            return false;
+        }
+    }
+
+    /**
+     * 通用注册逻辑
+     */
+    private boolean doRegister(String name, McpClientTransport transport) {
+        try {
             // 创建 MCP 客户端
             McpSyncClient client = McpClient.sync(transport)
                     .clientInfo(new McpSchema.Implementation("zhou-ai-agent", "1.0.0"))
@@ -97,7 +145,6 @@ public class McpToolRegistry {
             serverTools.put(name, tools);
 
             log.info("Registered MCP Server: {} with {} tools", name, tools.size());
-            notifyToolChange();
             return true;
         } catch (Exception e) {
             log.error("Failed to register MCP Server: {}", name, e);
@@ -119,7 +166,6 @@ public class McpToolRegistry {
                 log.warn("Error closing MCP client for server: {}", name, e);
             }
             log.info("Unregistered MCP Server: {}", name);
-            notifyToolChange();
             return true;
         }
         return false;
@@ -150,32 +196,28 @@ public class McpToolRegistry {
                     String url = serverConfig.get("url").asText();
                     registerServer(serverName, url);
                 } else if (serverConfig.has("command")) {
-                    // stdio 模式 - 记录日志但不自动启动（需要子进程管理）
-                    log.info("Found stdio MCP server config: {} (manual start required)", serverName);
+                    // stdio 模式
+                    String command = serverConfig.get("command").asText();
+
+                    List<String> args = new ArrayList<>();
+                    if (serverConfig.has("args")) {
+                        serverConfig.get("args").forEach(node -> args.add(node.asText()));
+                    }
+
+                    Map<String, String> env = new java.util.HashMap<>();
+                    if (serverConfig.has("env")) {
+                        serverConfig.get("env").fields().forEachRemaining(entry ->
+                                env.put(entry.getKey(), entry.getValue().asText())
+                        );
+                    }
+
+                    registerStdioServer(serverName, command, args, env);
                 }
             });
 
             log.info("Refreshed MCP servers from config file");
         } catch (Exception e) {
             log.error("Failed to refresh MCP servers from config file", e);
-        }
-    }
-
-    /**
-     * 添加工具变更监听器
-     */
-    public void addToolChangeListener(Consumer<List<ToolCallback>> listener) {
-        toolChangeListeners.add(listener);
-    }
-
-    private void notifyToolChange() {
-        List<ToolCallback> allTools = getAllMcpTools();
-        for (Consumer<List<ToolCallback>> listener : toolChangeListeners) {
-            try {
-                listener.accept(allTools);
-            } catch (Exception e) {
-                log.error("Error in tool change listener", e);
-            }
         }
     }
 

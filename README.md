@@ -219,7 +219,7 @@ docker-compose down
 
 ### MCP 动态工具发现与热插拔
 
-支持运行时动态添加/移除 MCP Server，无需重启服务。
+支持运行时动态添加/移除 MCP Server，无需重启服务。启动时自动从 `mcp-servers.json` 加载所有 MCP Server 配置。
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -227,18 +227,58 @@ docker-compose down
 │   REST API: POST/DELETE/GET /mcp/servers         │
 ├─────────────────────────────────────────────────┤
 │              McpToolRegistry                     │
+│   @PostConstruct 启动时自动加载 mcp-servers.json   │
+│   支持 SSE 和 stdio 两种传输模式                   │
 │   ConcurrentHashMap 管理所有 MCP Server 连接      │
-│   支持 SSE 模式注册和工具发现                      │
 ├─────────────────────────────────────────────────┤
 │         DynamicToolCallbackProvider              │
 │   统一管理：内置工具 + MCP 工具 + 动态工具         │
-│   CopyOnWriteArrayList 保证线程安全               │
+│   ZhouManus 通过此 Provider 获取完整工具列表       │
 ├─────────────────────────────────────────────────┤
 │         McpConfigFileWatcher                     │
 │   WatchService 监听 mcp-servers.json 文件变更      │
 │   文件修改时自动刷新 MCP Server 连接               │
 └─────────────────────────────────────────────────┘
 ```
+
+#### MCP 配置说明（mcp-servers.json）
+
+配置文件位于 `src/main/resources/mcp-servers.json`，支持两种模式：
+
+**SSE 模式** — 连接独立运行的 MCP Server（需先单独启动）：
+```json
+{
+  "mcpServers": {
+    "server-name": {
+      "url": "http://localhost:8127"
+    }
+  }
+}
+```
+
+**stdio 模式** — 自动启动 MCP Server 子进程（通过 stdin/stdout 通信）：
+```json
+{
+  "mcpServers": {
+    "server-name": {
+      "command": "java",
+      "args": [
+        "-Dspring.ai.mcp.server.stdio=true",
+        "-Dspring.main.web-application-type=none",
+        "-Dspring.main.banner-mode=off",
+        "-Dspring.main.log-startup-info=false",
+        "-Dlogging.level.root=WARN",
+        "-Dlogging.pattern.console=",
+        "-jar",
+        "/absolute/path/to/your-mcp-server.jar"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+> **重要**：stdio 模式下 jar 路径必须使用绝对路径，且必须包含完整的 jar 包文件。使用相对路径时，工作目录不同会导致找不到 jar 包。同时需要通过 JVM 参数彻底抑制 Spring Boot 的 stdout 输出（banner、日志等），否则非 JSON 内容会污染 MCP stdio 协议通信，导致 `MismatchedInputException` 或连接超时。
 
 ### 可观测性（Langfuse）
 

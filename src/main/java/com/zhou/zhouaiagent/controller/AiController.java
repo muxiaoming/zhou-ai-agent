@@ -2,9 +2,9 @@ package com.zhou.zhouaiagent.controller;
 
 import com.zhou.zhouaiagent.agent.ZhouManus;
 import com.zhou.zhouaiagent.app.LoveApp;
+import com.zhou.zhouaiagent.mcp.DynamicToolCallbackProvider;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.tool.ToolCallback;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,7 +23,7 @@ public class AiController {
     private LoveApp loveApp;
 
     @Resource
-    private ToolCallback[] allTools;
+    private DynamicToolCallbackProvider dynamicToolCallbackProvider;
 
     @Resource
     private ChatModel dashscopeChatModel;
@@ -100,7 +100,7 @@ public class AiController {
      */
     @GetMapping(value = "/manus/chat/flux", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> doChatWithManusFlux(String message) {
-        ZhouManus zhouManus = new ZhouManus(allTools, dashscopeChatModel);
+        ZhouManus zhouManus = new ZhouManus(dynamicToolCallbackProvider.getToolCallbacks(), dashscopeChatModel);
         return zhouManus.runStreamFlux(message);
     }
 
@@ -112,7 +112,7 @@ public class AiController {
      */
     @GetMapping("/manus/chat")
     public SseEmitter doChatWithManus(String message) {
-        ZhouManus zhouManus = new ZhouManus(allTools, dashscopeChatModel);
+        ZhouManus zhouManus = new ZhouManus(dynamicToolCallbackProvider.getToolCallbacks(), dashscopeChatModel);
         return zhouManus.runStream(message);
     }
 }

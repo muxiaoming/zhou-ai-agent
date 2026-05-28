@@ -73,7 +73,7 @@ public class McpServerController {
         );
     }
 
-    @Operation(summary = "从配置文件重新加载所有 MCP Server")
+    @Operation(summary = "从配置文件重新加载所有 MCP Server (原本被注销的也会被重新注册)")
     @PostMapping("/refresh")
     public Map<String, Object> refreshServers() {
         mcpToolRegistry.refreshFromConfigFile();

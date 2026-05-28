@@ -20,6 +20,11 @@
       "args": [
         "-Dspring.ai.mcp.server.stdio=true",
         "-Dspring.main.web-application-type=none",
+        "-Dspring.main.banner-mode=off",
+        "-Dspring.main.log-startup-info=false",
+        "-Dlogging.level.root=WARN",
+        "-Dlogging.level.org.springframework=WARN",
+        "-Dlogging.level.io.modelcontextprotocol=WARN",
         "-Dlogging.pattern.console=",
         "-jar",
         "zhou-image-search-mcp-server/target/zhou-image-search-mcp-server-0.0.1-SNAPSHOT.jar"

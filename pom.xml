@@ -198,6 +198,12 @@
             <groupId>io.opentelemetry.instrumentation</groupId>
             <artifactId>opentelemetry-spring-boot-starter</artifactId>
         </dependency>
+        <!-- 显式指定 incubator 版本，覆盖 micrometer-tracing-bridge-otel 传递的旧版本 -->
+        <dependency>
+            <groupId>io.opentelemetry.instrumentation</groupId>
+            <artifactId>opentelemetry-instrumentation-api-incubator</artifactId>
+            <version>2.17.0-alpha</version>
+        </dependency>
 
         <dependency>
             <groupId>org.projectlombok</groupId>

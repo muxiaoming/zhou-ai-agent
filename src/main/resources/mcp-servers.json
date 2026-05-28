@@ -15,7 +15,7 @@
         "AMAP_MAPS_API_KEY": "https://console.amap.com/dev/key/app 高德开放平台创建应用获取apikey"
       }
     },
-    "yu-image-search-mcp-server": {
+    "zhou-image-search-mcp-server": {
       "command": "java",
       "args": [
         "-Dspring.ai.mcp.server.stdio=true",

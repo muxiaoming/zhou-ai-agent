@@ -7,6 +7,7 @@ import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -30,7 +31,7 @@ public class AgenticRagService {
     private final DocumentRetriever documentRetriever;
 
     public AgenticRagService(ChatModel chatModel,
-                             org.springframework.ai.vectorstore.VectorStore vectorStore) {
+                             VectorStore vectorStore) {
         this.chatClient = ChatClient.builder(chatModel).build();
         // 使用向量检索器（基于语义相似度）
         this.documentRetriever = VectorStoreDocumentRetriever.builder()

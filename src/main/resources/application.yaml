@@ -30,8 +30,7 @@ spring:
               url: http://localhost:8127
 
   datasource:
-    # 使用的本地docker创建的镜像, 端口默认5432, 映射为5433
-    url: jdbc:postgresql://localhost:5433/zhou_ai_agent
+    url: jdbc:postgresql://localhost:5432/zhou_ai_agent
     username: postgres
     password: postgres
 
@@ -62,6 +61,10 @@ knife4j:
 search-api:
   # 需要替换为真实的 key
   api-key: real api Key
+
+# RAG 知识库初始化配置（启动时异步加载文档到 PgVector，设为 false 可跳过）
+rag:
+  init-on-startup: false
 # 修改日志级别，查看 Spring AI 更多调用细节
 logging:
   level:

@@ -23,7 +23,7 @@ public class LoveAppVectorStoreConfig {
     @Resource
     private MyKeywordEnricher myKeywordEnricher;
 
-    @Bean
+    //@Bean
     public SimpleVectorStore simpleVectorStore(EmbeddingModel dashscopeEmbeddingModel) {
         SimpleVectorStore simpleVectorStore = SimpleVectorStore.builder(dashscopeEmbeddingModel).build();
         List<Document> documentList = loveAppDocumentLoader.loadMarkdowns();
@@ -34,7 +34,7 @@ public class LoveAppVectorStoreConfig {
         return simpleVectorStore;
     }
 
-    @Bean
+    //@Bean
     public QuestionAnswerAdvisor questionAnswerAdvisor(EmbeddingModel dashScopeEmbeddingModel) {
         return new QuestionAnswerAdvisor(simpleVectorStore(dashScopeEmbeddingModel));
     }

@@ -24,7 +24,6 @@ import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
-import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -119,7 +118,7 @@ public class LoveApp {
     }
 
     @Resource
-    private SimpleVectorStore simpleVectorStore;
+    private VectorStore pgVectorVectorStore;
     //@Resource
     private QuestionAnswerAdvisor questionAnswerAdvisor;
 
@@ -149,7 +148,7 @@ public class LoveApp {
                 .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
                 //.advisors(questionAnswerAdvisor)
                 // 应用 RAG 知识库问答
-                .advisors(new QuestionAnswerAdvisor(simpleVectorStore))
+                .advisors(new QuestionAnswerAdvisor(pgVectorVectorStore))
                 .call()
                 .chatResponse();
         String content = chatResponse.getResult().getOutput().getText();
@@ -183,8 +182,8 @@ public class LoveApp {
     @Resource
     private QueryRewriter queryRewriter;
 
-    @Resource
-    private VectorStore pgVectorVectorStore;
+//    @Resource
+//    private VectorStore pgVectorVectorStore;
 
     /**
      * 应用自定义的 RAG 检索增强服务（文档查询器 + 上下文增强器）

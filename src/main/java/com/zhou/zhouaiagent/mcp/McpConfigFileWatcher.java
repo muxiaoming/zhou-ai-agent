@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
+import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -14,6 +15,7 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,6 +57,15 @@ public class McpConfigFileWatcher {
 
             executor.submit(this::watchLoop);
             log.info("Started watching MCP config file in directory: {}", configDir.toAbsolutePath());
+
+            // 异步加载初始 MCP Server 配置，避免阻塞启动
+            CompletableFuture.runAsync(() -> {
+                try {
+                    mcpToolRegistry.refreshFromConfigFile();
+                } catch (Exception e) {
+                    log.warn("Failed to load initial MCP server config", e);
+                }
+            });
         } catch (IOException e) {
             log.error("Failed to start MCP config file watcher", e);
         }
@@ -92,6 +103,9 @@ public class McpConfigFileWatcher {
                 key.reset();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                break;
+            } catch (ClosedWatchServiceException e) {
+                // WatchService 已关闭，正常退出
                 break;
             } catch (Exception e) {
                 log.error("Error in watch loop", e);

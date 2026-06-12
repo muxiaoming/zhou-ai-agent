@@ -3,6 +3,7 @@ package com.zhou.zhouaiagent.controller;
 import com.zhou.zhouaiagent.agent.ZhouManus;
 import com.zhou.zhouaiagent.app.LoveApp;
 import com.zhou.zhouaiagent.mcp.DynamicToolCallbackProvider;
+import com.zhou.zhouaiagent.rag.AgenticRagService;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.http.MediaType;
@@ -14,6 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/ai")
@@ -28,6 +30,9 @@ public class AiController {
     @Resource
     private ChatModel dashscopeChatModel;
 
+    @Resource
+    private AgenticRagService agenticRagService;
+
     /**
      * 同步调用 AI 恋爱大师应用
      *
@@ -38,6 +43,29 @@ public class AiController {
     @GetMapping("/love_app/chat/sync")
     public String doChatWithLoveAppSync(String message, String chatId) {
         return loveApp.doChat(message, chatId);
+    }
+
+    /**
+     * Agentic RAG 流式查询（SseEmitter 方式）
+     * LLM 驱动路由 + 混合检索 + 多轮反思
+     *
+     * @param message 用户问题
+     * @param chatId  会话 ID
+     * @return SseEmitter 流式响应
+     */
+    @GetMapping("/love_app/rag")
+    public SseEmitter doChatWithAgenticRag(String message, String chatId) {
+        SseEmitter sseEmitter = new SseEmitter(180000L);
+        CompletableFuture.runAsync(() -> {
+            try {
+                String answer = agenticRagService.query(message, chatId);
+                sseEmitter.send(answer);
+                sseEmitter.complete();
+            } catch (Exception e) {
+                sseEmitter.completeWithError(e);
+            }
+        });
+        return sseEmitter;
     }
 
     /**

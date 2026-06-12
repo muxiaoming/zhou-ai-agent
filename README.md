@@ -14,7 +14,7 @@ Zhou AI Agent 是一个端到端的 AI 智能体平台，涵盖后端服务、�
 
 - **AI 情感大师** — 多轮对话、流式输出、RAG 知识增强、结构化输出
 - **ZhouManus 智能体** — 自主规划执行的 ReAct 模式 Agent，支持内置工具 + MCP 扩展工具，可自动终止
-- **RAG 系统** — Agentic RAG（查询路由 + 向量检索 + 兜底处理），支持查询改写与文档过滤
+- **RAG 系统** — Agentic RAG（LLM 驱动路由 + 向量+关键词混合检索 + 多轮反思循环 + 兜底处理），支持查询改写与文档过滤
 - **MCP 协议集成** — 动态工具发现与热插拔，支持 REST API 和配置文件热加载双模式
 - **记忆持久化** — 基于 JDBC + PostgreSQL 的会话记忆持久化，支持滑动窗口
 - **可观测性** — Langfuse + Micrometer Tracing + OpenTelemetry，追踪 LLM 调用链路
@@ -301,21 +301,28 @@ docker-compose down
 
 ### Agentic RAG
 
-整合查询路由、向量检索、兜底处理的完整 RAG Pipeline。
+LLM 作为代理自主决策的完整 RAG Pipeline，整合混合检索与多轮反思机制。
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              QueryRouter                         │
-│   关键词匹配：恋爱/婚姻/感情等 → 走 RAG            │
-│   短文本 + 无问号 → 直接回答                       │
+│              LLM Route Agent                    │
+│   自主判断：RETRIEVE（检索）/ DIRECT_ANSWER（直答）│
 ├─────────────────────────────────────────────────┤
-│       VectorStoreDocumentRetriever               │
-│   语义相似度检索，topK=3，阈值 0.5                 │
-│   基于 PGVector 向量存储                          │
+│         RewriteQueryTransformer                  │
+│   查询改写，优化检索词                            │
+├─────────────────────────────────────────────────┤
+│       HybridDocumentRetriever                    │
+│   向量检索：语义相似度（PGVector COSINE）          │
+│   关键词检索：ILIKE 精确匹配（PostgreSQL 原生）    │
+│   合并去重：LinkedHashMap 按 ID 去重              │
+├─────────────────────────────────────────────────┤
+│          LLM Retrieval Evaluator                 │
+│   评估检索质量：SUFFICIENT / RE_RETRIEVE / GIVE_UP│
+│   多轮反思：最多 2 轮，LLM 生成改进检索词         │
 ├─────────────────────────────────────────────────┤
 │              兜底策略                             │
-│   检索为空 → LLM 直接回答                          │
-│   检索有结果 → 构建上下文 → LLM 基于资料回答        │
+│   检索为空 → LLM 直接回答                         │
+│   检索有结果 → 构建上下文 → LLM 基于资料回答       │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -335,19 +342,6 @@ Flux.create(sink -> {
     });
 }, FluxSink.OverflowStrategy.BUFFER);
 ```
-
-## 面试亮点总结
-
-| 技术点 | 面试问题 | 项目实现 |
-|--------|----------|----------|
-| Agent 架构 | 如何设计一个可扩展的 Agent 系统？ | 四层继承架构：BaseAgent → ReActAgent → ToolCallAgent → ZhouManus |
-| 工具调用 | 如何控制工具调用的时机？ | 禁用 Spring AI 内置机制，think() 判断 + act() 手动执行 |
-| 记忆管理 | 服务重启后会话丢失怎么办？ | JdbcChatMemoryRepository + PostgreSQL 持久化 |
-| MCP 协议 | 如何运行时动态添加工具？ | McpToolRegistry + REST API + 配置文件热加载 |
-| RAG 策略 | 如何提升 RAG 检索效果？ | 查询路由 + 语义检索 + 兜底策略 |
-| 流式输出 | 如何实现线程安全的流式推送？ | Flux.create() + FluxSink + Schedulers.boundedElastic() |
-| 可观测性 | 如何监控 Agent 的 Token 消耗？ | Langfuse + @Observed + OpenTelemetry OTLP |
-| 终止机制 | 如何防止 Agent 无限循环？ | TerminateTool 主动终止 + maxSteps 兜底 |
 
 ## 截图
 

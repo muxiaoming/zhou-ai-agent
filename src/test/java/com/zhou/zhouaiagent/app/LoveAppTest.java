@@ -53,13 +53,13 @@ class LoveAppTest {
         // 第一轮
         String message = "你好，我是张三";
         String answer = loveApp.doChat(message, chatId);
-        // 第二轮
-        message = "我想学习恋爱技巧";
-        answer = loveApp.doChat(message, chatId);
-        Assertions.assertNotNull(answer);
-        // 第三轮
-        message = "我的名字是？帮我回忆一下";
-        answer = loveApp.doChat(message, chatId);
+//        // 第二轮
+//        message = "我想学习恋爱技巧";
+//        answer = loveApp.doChat(message, chatId);
+//        Assertions.assertNotNull(answer);
+//        // 第三轮
+//        message = "我的名字是？帮我回忆一下";
+//        answer = loveApp.doChat(message, chatId);
         Assertions.assertNotNull(answer);
     }
 

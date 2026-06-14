@@ -280,22 +280,31 @@ docker-compose down
 
 > **重要**：stdio 模式下 jar 路径必须使用绝对路径，且必须包含完整的 jar 包文件。使用相对路径时，工作目录不同会导致找不到 jar 包。同时需要通过 JVM 参数彻底抑制 Spring Boot 的 stdout 输出（banner、日志等），否则非 JSON 内容会污染 MCP stdio 协议通信，导致 `MismatchedInputException` 或连接超时。
 
-### 可观测性（Langfuse）
+### 可观测性（Langfuse 3）
+可仿照 springai集成langfuse3示例 [github](https://github.com/muxiaoming/langfuse3-official)
 
-通过 Micrometer Tracing + OpenTelemetry 追踪 LLM 调用链路。
+通过 OpenTelemetry 协议原生集成 Langfuse 3，无 Langfuse SDK 依赖。
 
 ```
 ┌─────────────────────────────────────────────────┐
-│               Langfuse 面板                      │
+│               Langfuse 3 面板                    │
 │   可视化 Agent 执行链路、Token 消耗、延迟          │
+│   展示 prompt/completion 完整对话内容             │
 ├─────────────────────────────────────────────────┤
-│           OpenTelemetry OTLP Exporter            │
-│   自动采集 Traces → 发送到 Langfuse               │
+│        OpenTelemetry OTLP Exporter               │
+│   OTLP/HTTP → Langfuse /api/public/otel          │
 ├─────────────────────────────────────────────────┤
-│              @Observed 注解                      │
-│   BaseAgent.run()     → agent.run                │
+│  micrometer-tracing-bridge-otel                  │
+│   Micrometer Observation → OTel Span 桥接        │
+├─────────────────────────────────────────────────┤
+│  ChatModelCompletionContentObservationFilter     │
+│   注入 gen_ai.prompt / gen_ai.completion          │
+├─────────────────────────────────────────────────┤
+│  Spring AI Observation + @Observed 注解           │
+│   ChatModel.call()  → spring_ai chat_client      │
+│   BaseAgent.run()   → agent.run                  │
 │   ToolCallAgent.think() → agent.think            │
-│   ToolCallAgent.act()  → agent.act               │
+│   ToolCallAgent.act()   → agent.act              │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -356,3 +365,6 @@ Flux.create(sink -> {
 
 **Manus 智能体前端界面**
 ![Manus 智能体前端界面](zhou-ai-agent-frontend/img.png)
+
+**Langfuse3 界面**
+![img_3.png](img_3.png)

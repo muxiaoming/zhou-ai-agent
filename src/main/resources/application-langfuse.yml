@@ -1,5 +1,13 @@
-# Langfuse 可观测性配置
+# Langfuse 可观测性配置（对齐官方实现）
 # 使用方式：启动时添加 --spring.profiles.active=local,langfuse
+#
+# 观测链路：
+#   Spring AI ChatModel.call()
+#     -> Micrometer Observation（采集指标）
+#     -> ChatModelCompletionContentObservationFilter（注入 prompt/completion 内容）
+#     -> micrometer-tracing-bridge-otel（桥接为 OTel Span）
+#     -> opentelemetry-exporter-otlp（OTLP/HTTP 导出）
+#     -> Langfuse /api/public/otel（接收并展示 Trace）
 
 spring:
   application:
@@ -7,26 +15,33 @@ spring:
   ai:
     chat:
       observations:
-        log-prompt: true      # 在 tracing 中记录 prompt 内容（默认关闭，出于隐私考虑）
-        log-completion: true  # 在 tracing 中记录 completion 内容（默认关闭）
+        log-prompt: true      # 在 tracing 中记录 prompt 内容
+        log-completion: true  # 在 tracing 中记录 completion 内容
+otel:
+  logs:
+    exporter: none          # Langfuse 不支持日志导出，禁用避免 404
+  metrics:
+    exporter: none          # Langfuse 不支持指标导出，禁用避免 404
+  exporter:
+    otlp:
+      # Langfuse 3 OTLP 端点（官方路径 /api/public/otel，SDK 自动追加 /v1/traces）
+      endpoint: http://localhost:3000/api/public/otel
+      # Langfuse 3 OTLP 认证：Basic Auth (publicKey:secretKey 的 Base64)
+      # 首次启动后在 http://localhost:3000 创建项目获取密钥
+      # 生成命令(git bash或PS): echo -n "pk-lf-xxx:sk-lf-xxx" | base64
+      # 生成命令(纯PS): [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("pk-lf-xxx:sk-lf-xxx"))
+      # 真实密钥配置在 application-dev.yml（不提交）
+      headers:
+        Authorization: "Basic cGstbGYtMTI1ZmQ4NTctMDczYS00OTNjLTlkOTAtMjVkMDAwODI5M2M0OnNrLWxmLTM3ZTYxZTJlLTQ5N2YtNGM5ZC1hN2YwLTgwM2QyZmYzMGYxYw=="
+        x-langfuse-ingestion-version: "4"
+  service:
+    name: zhou-ai-agent
 
 management:
   tracing:
     sampling:
-      probability: 1.0  # 采样率 100%（生产环境可降低）
+      probability: 1.0        # 采样率 100%（生产环境可降低）
   observations:
     annotations:
-      enabled: true  # 启用 @Observed 注解
-    enable:
-      "http.server.requests": false  # 禁用 Micrometer HTTP server spans（避免重复）
-      "http.client.requests": false  # 禁用 Micrometer HTTP client spans（避免重复）
+      enabled: true            # 启用 @Observed 注解
 
-otel:
-  instrumentation:
-    spring-webmvc:
-      enabled: false  # 禁用 OTel HTTP server spans（避免重复）
-    spring-web:
-      enabled: false  # 禁用 OTel HTTP client spans（避免重复）
-  exporter:
-    otlp:
-      endpoint: http://localhost:4318  # Langfuse OTLP 端点（通过 OpenTelemetry Collector）

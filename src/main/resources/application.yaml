@@ -2,7 +2,10 @@ spring:
   application:
     name: zhou-ai-agent
   profiles:
-    active: local
+    active: local,pgmemory,langfuse
+  mvc:
+    favicon:
+      enabled: false       # 禁用 favicon.ico 500 错误噪音（skill 指南推荐）
   ai:
     dashscope:
       # 需要替换为真实的 api key

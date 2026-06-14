@@ -32,6 +32,14 @@
     </properties>
     <dependencyManagement>
         <dependencies>
+            <!-- OpenTelemetry BOM 必须放在最前面，避免被其他 BOM 的旧版本覆盖 -->
+            <dependency>
+                <groupId>io.opentelemetry.instrumentation</groupId>
+                <artifactId>opentelemetry-instrumentation-bom</artifactId>
+                <version>2.17.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>com.alibaba.cloud.ai</groupId>
                 <artifactId>spring-ai-alibaba-bom</artifactId>
@@ -43,14 +51,6 @@
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
                 <version>1.0.0</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <!-- OpenTelemetry Instrumentation BOM -->
-            <dependency>
-                <groupId>io.opentelemetry.instrumentation</groupId>
-                <artifactId>opentelemetry-instrumentation-bom</artifactId>
-                <version>2.17.0</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -187,22 +187,41 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-tracing-bridge-otel</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.opentelemetry.instrumentation</groupId>
+                    <artifactId>opentelemetry-instrumentation-api-incubator</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- 显式声明 2.17.0-alpha，覆盖 micrometer 传递的旧版 2.9.0-alpha -->
+        <dependency>
+            <groupId>io.opentelemetry.instrumentation</groupId>
+            <artifactId>opentelemetry-instrumentation-api-incubator</artifactId>
+            <version>2.17.0-alpha</version>
         </dependency>
         <!-- OpenTelemetry OTLP exporter for traces -->
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-otlp</artifactId>
         </dependency>
-        <!-- OpenTelemetry Spring Boot starter -->
+        <!-- OpenTelemetry Spring Boot Starter（自动配置 Tracer/Meter） -->
         <dependency>
             <groupId>io.opentelemetry.instrumentation</groupId>
             <artifactId>opentelemetry-spring-boot-starter</artifactId>
         </dependency>
-        <!-- 显式指定 incubator 版本，覆盖 micrometer-tracing-bridge-otel 传递的旧版本 -->
+
         <dependency>
-            <groupId>io.opentelemetry.instrumentation</groupId>
-            <artifactId>opentelemetry-instrumentation-api-incubator</artifactId>
-            <version>2.17.0-alpha</version>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-autoconfigure-model-chat-observation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-autoconfigure-model-embedding-observation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-autoconfigure-model-image-observation</artifactId>
         </dependency>
 
         <dependency>

@@ -12,7 +12,7 @@
         "@amap/amap-maps-mcp-server"
       ],
       "env": {
-        "AMAP_MAPS_API_KEY": "https://console.amap.com/dev/key/app 高德开放平台创建应用获取apikey"
+        "AMAP_MAPS_API_KEY": "0690a6b4b58d6458f1a20c0c434b3202"
       }
     },
     "zhou-image-search-mcp-server": {

@@ -1,9 +1,13 @@
 package com.zhou.zhouaiagent.rag;
 
+import com.zhou.zhouaiagent.memory.JdbcChatMemoryRepository;
 import com.zhou.zhouaiagent.rag.model.RetrievalEvaluation;
 import com.zhou.zhouaiagent.rag.model.RouteDecision;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
@@ -44,27 +48,47 @@ public class AgenticRagService {
     public AgenticRagService(ChatModel chatModel,
                              VectorStore vectorStore,
                              JdbcTemplate jdbcTemplate) {
-        this.chatClient = ChatClient.builder(chatModel).build();
+        // 初始化基于 PostgreSQL 的对话记忆（复用现有存储层）
+        MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder()
+                .chatMemoryRepository(new JdbcChatMemoryRepository(jdbcTemplate))
+                // 记忆窗口大小：保留最近 20 条消息（与 LoveApp 保持一致）
+                .maxMessages(20)
+                .build();
+
+        this.chatClient = ChatClient.builder(chatModel)
+                // 配置会话记忆 Advisor
+                .defaultAdvisors(
+                        MessageChatMemoryAdvisor.builder(chatMemory).build()
+                )
+                .build();
+
         this.hybridDocumentRetriever = HybridDocumentRetriever.builder()
                 .vectorStore(vectorStore)
                 .jdbcTemplate(jdbcTemplate)
                 .similarityThreshold(0.5)
                 .topK(5)
                 .build();
+
         this.queryTransformer = RewriteQueryTransformer.builder()
                 .chatClientBuilder(ChatClient.builder(chatModel))
                 .build();
     }
 
     /**
-     * 执行 Agentic RAG 查询
+     * 执行 Agentic RAG 查询（支持多轮对话记忆）
      *
      * @param query  用户查询
-     * @param chatId 会话 ID
+     * @param chatId 会话 ID（可为 null，此时降级为无记忆模式）
      * @return 回答内容
      */
     public String query(String query, String chatId) {
-        log.info("Agentic RAG query: {}", query);
+        // 参数验证与降级处理
+        boolean useMemory = chatId != null && !chatId.isBlank();
+        if (!useMemory) {
+            log.info("Agentic RAG query (无记忆模式): {}", query);
+        } else {
+            log.info("Agentic RAG query: {}, chatId: {}", query, chatId);
+        }
 
         // 1. LLM 路由决策：判断是否需要检索
         RouteDecision routeDecision = decideRoute(query);
@@ -72,7 +96,18 @@ public class AgenticRagService {
 
         if (routeDecision.action() == RouteDecision.RouteAction.DIRECT_ANSWER) {
             log.info("Direct answer, skipping retrieval");
-            return chatClient.prompt().user(query).call().content();
+            if (useMemory) {
+                return chatClient.prompt()
+                        .user(query)
+                        .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                        .call()
+                        .content();
+            } else {
+                return chatClient.prompt()
+                        .user(query)
+                        .call()
+                        .content();
+            }
         }
 
         // 2. 查询改写，优化检索词
@@ -122,22 +157,39 @@ public class AgenticRagService {
             }
         }
 
-        // 4. 生成最终回答
+        // 4. 生成最终回答（带会话记忆）
         if (allDocuments.isEmpty()) {
             log.info("No documents found, using fallback");
-            return chatClient.prompt()
-                    .user(query + "\n\n如果没有相关知识，请直接根据你的理解回答。")
-                    .call()
-                    .content();
+            if (useMemory) {
+                return chatClient.prompt()
+                        .user(query + "\n\n如果没有相关知识，请直接根据你的理解回答。")
+                        .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                        .call()
+                        .content();
+            } else {
+                return chatClient.prompt()
+                        .user(query + "\n\n如果没有相关知识，请直接根据你的理解回答。")
+                        .call()
+                        .content();
+            }
         }
 
         String context = buildContext(allDocuments);
         log.info("Generating answer with {} documents", allDocuments.size());
-        return chatClient.prompt()
-                .system(context)
-                .user(query)
-                .call()
-                .content();
+        if (useMemory) {
+            return chatClient.prompt()
+                    .system(context)
+                    .user(query)
+                    .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                    .call()
+                    .content();
+        } else {
+            return chatClient.prompt()
+                    .system(context)
+                    .user(query)
+                    .call()
+                    .content();
+        }
     }
 
     /**

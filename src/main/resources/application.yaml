@@ -36,6 +36,14 @@ spring:
     url: jdbc:postgresql://localhost:5432/zhou_ai_agent
     username: postgres
     password: postgres
+    hikari:
+      maximum-pool-size: 30          # 默认10过小，RAG单次查询需4~6个连接×并发数
+      minimum-idle: 10               # 保持最小空闲连接，减少冷启动延迟
+      connection-timeout: 10000      # 获取连接超时 10s（默认30s过长，快速失败）
+      idle-timeout: 300000           # 空闲连接存活 5min
+      max-lifetime: 600000           # 连接最大存活 10min，避免 PostgreSQL 长连接积累
+      leak-detection-threshold: 30000 # 连接泄漏检测 30s，慢查询告警
+      validation-timeout: 3000       # 连接验证超时 3s（默认5s），快速剔除失效连接避免阻塞
 
 server:
   port: 8123

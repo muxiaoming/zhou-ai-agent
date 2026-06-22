@@ -37,6 +37,12 @@ otel:
   service:
     name: zhou-ai-agent
 
+# OTel OTLP 导出超时：SDK 通过环境变量 OTEL_EXPORTER_OTLP_TIMEOUT 读取（单位 ms）
+# 这里用 Spring Boot 的环境变量注入机制，确保大 Span（含完整 prompt/completion）不会超时
+# 如果启动脚本不方便设环境变量，可在 JVM 启动参数加：-Dotel.exporter.otlp.timeout=30000
+# OTel BatchSpanProcessor 优化（默认队列 2048、超时 30s）
+# 可通过 JVM 参数调整：-Dotel.bsp.max.queue.size=4096 -Dotel.bsp.export.timeout=30000
+
 management:
   tracing:
     sampling:
@@ -44,4 +50,11 @@ management:
   observations:
     annotations:
       enabled: true            # 启用 @Observed 注解
+
+# OTel SDK JVM 参数配置（解决 OTLP 上报超时阻塞）
+# 通过 Spring Boot 启动参数注入，无需修改代码：
+# -Dotel.bsp.schedule.delay=5000       # 批量导出间隔 5s（默认5s）
+# -Dotel.bsp.max.queue.size=4096       # 批量队列大小（默认2048，大Span易溢出）
+# -Dotel.bsp.export.timeout=30000      # 单次导出超时 30s（默认10s，Langfuse需更长）
+# -Dotel.exporter.otlp.timeout=30000   # OTLP HTTP 超时 30s（默认10s）
 

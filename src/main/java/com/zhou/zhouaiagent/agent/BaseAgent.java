@@ -3,6 +3,8 @@ package com.zhou.zhouaiagent.agent;
 import cn.hutool.core.util.StrUtil;
 import com.zhou.zhouaiagent.agent.model.AgentState;
 import io.micrometer.observation.annotation.Observed;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -117,63 +119,68 @@ public abstract class BaseAgent {
     public SseEmitter runStream(String userPrompt) {
         // 创建一个超时时间较长的 SseEmitter
         SseEmitter sseEmitter = new SseEmitter(300000L); // 5 分钟超时
+        // 捕获当前 OTel Context，传递到异步线程
+        Context otelContext = Context.current();
         // 使用线程异步处理，避免阻塞主线程
         // 如果不异步执行依然是同步执行, 使用git bash依旧会同步返回, 无打字机效果
         CompletableFuture.runAsync(() -> {
-            // 1、基础校验
-            try {
-                if (this.state != AgentState.IDLE) {
-                    sseEmitter.send("错误：无法从状态运行代理：" + this.state);
-                    sseEmitter.complete();
-                    return;
-                }
-                if (StrUtil.isBlank(userPrompt)) {
-                    sseEmitter.send("错误：不能使用空提示词运行代理");
-                    sseEmitter.complete();
-                    return;
-                }
-            } catch (Exception e) {
-                sseEmitter.completeWithError(e);
-            }
-            // 2、执行，更改状态
-            this.state = AgentState.RUNNING;
-            // 记录消息上下文
-            messageList.add(new UserMessage(userPrompt));
-            // 保存结果列表
-            List<String> results = new ArrayList<>();
-            try {
-                // 执行循环
-                for (int i = 0; i < maxSteps && state != AgentState.FINISHED; i++) {
-                    int stepNumber = i + 1;
-                    currentStep = stepNumber;
-                    log.info("Executing step {}/{}", stepNumber, maxSteps);
-                    // 单步执行
-                    String stepResult = step();
-                    String result = "Step " + stepNumber + ": " + stepResult;
-                    results.add(result);
-                    // 输出当前每一步的结果到 SSE
-                    sseEmitter.send(result);
-                }
-                // 检查是否超出步骤限制
-                if (currentStep >= maxSteps) {
-                    state = AgentState.FINISHED;
-                    results.add("Terminated: Reached max steps (" + maxSteps + ")");
-                    sseEmitter.send("执行结束：达到最大步骤（" + maxSteps + "）");
-                }
-                // 正常完成
-                sseEmitter.complete();
-            } catch (Exception e) {
-                state = AgentState.ERROR;
-                log.error("error executing agent", e);
+            // 恢复父线程的 OTel Context，确保链路 TraceId 统一
+            try (Scope ignored = otelContext.makeCurrent()) {
+                // 1、基础校验
                 try {
-                    sseEmitter.send("执行错误：" + e.getMessage());
-                    sseEmitter.complete();
-                } catch (IOException ex) {
-                    sseEmitter.completeWithError(ex);
+                    if (this.state != AgentState.IDLE) {
+                        sseEmitter.send("错误：无法从状态运行代理：" + this.state);
+                        sseEmitter.complete();
+                        return;
+                    }
+                    if (StrUtil.isBlank(userPrompt)) {
+                        sseEmitter.send("错误：不能使用空提示词运行代理");
+                        sseEmitter.complete();
+                        return;
+                    }
+                } catch (Exception e) {
+                    sseEmitter.completeWithError(e);
                 }
-            } finally {
-                // 3、清理资源
-                this.cleanup();
+                // 2、执行，更改状态
+                this.state = AgentState.RUNNING;
+                // 记录消息上下文
+                messageList.add(new UserMessage(userPrompt));
+                // 保存结果列表
+                List<String> results = new ArrayList<>();
+                try {
+                    // 执行循环
+                    for (int i = 0; i < maxSteps && state != AgentState.FINISHED; i++) {
+                        int stepNumber = i + 1;
+                        currentStep = stepNumber;
+                        log.info("Executing step {}/{}", stepNumber, maxSteps);
+                        // 单步执行
+                        String stepResult = step();
+                        String result = "Step " + stepNumber + ": " + stepResult;
+                        results.add(result);
+                        // 输出当前每一步的结果到 SSE
+                        sseEmitter.send(result);
+                    }
+                    // 检查是否超出步骤限制
+                    if (currentStep >= maxSteps) {
+                        state = AgentState.FINISHED;
+                        results.add("Terminated: Reached max steps (" + maxSteps + ")");
+                        sseEmitter.send("执行结束：达到最大步骤（" + maxSteps + "）");
+                    }
+                    // 正常完成
+                    sseEmitter.complete();
+                } catch (Exception e) {
+                    state = AgentState.ERROR;
+                    log.error("error executing agent", e);
+                    try {
+                        sseEmitter.send("执行错误：" + e.getMessage());
+                        sseEmitter.complete();
+                    } catch (IOException ex) {
+                        sseEmitter.completeWithError(ex);
+                    }
+                } finally {
+                    // 3、清理资源
+                    this.cleanup();
+                }
             }
         });
 
@@ -204,45 +211,50 @@ public abstract class BaseAgent {
      */
     @Observed(name = "agent.runStreamFlux", contextualName = "Agent Flux streaming execution")
     public Flux<String> runStreamFlux(String userPrompt) {
+        // 捕获当前 OTel Context，传递到调度器线程
+        Context otelContext = Context.current();
         return Flux.create(sink -> {
             Schedulers.boundedElastic().schedule(() -> {
-                try {
-                    // 1、基础校验
-                    if (this.state != AgentState.IDLE) {
-                        sink.next("错误：无法从状态运行代理：" + this.state);
+                // 恢复父线程的 OTel Context，确保链路 TraceId 统一
+                try (Scope ignored = otelContext.makeCurrent()) {
+                    try {
+                        // 1、基础校验
+                        if (this.state != AgentState.IDLE) {
+                            sink.next("错误：无法从状态运行代理：" + this.state);
+                            sink.complete();
+                            return;
+                        }
+                        if (StrUtil.isBlank(userPrompt)) {
+                            sink.next("错误：不能使用空提示词运行代理");
+                            sink.complete();
+                            return;
+                        }
+                        // 2、执行，更改状态
+                        this.state = AgentState.RUNNING;
+                        messageList.add(new UserMessage(userPrompt));
+                        // 3、执行循环
+                        for (int i = 0; i < maxSteps && state != AgentState.FINISHED; i++) {
+                            int stepNumber = i + 1;
+                            currentStep = stepNumber;
+                            log.info("Executing step {}/{}", stepNumber, maxSteps);
+                            String stepResult = step();
+                            String result = "Step " + stepNumber + ": " + stepResult;
+                            sink.next(result);
+                        }
+                        // 检查是否超出步骤限制
+                        if (currentStep >= maxSteps) {
+                            state = AgentState.FINISHED;
+                            sink.next("执行结束：达到最大步骤（" + maxSteps + "）");
+                        }
                         sink.complete();
-                        return;
-                    }
-                    if (StrUtil.isBlank(userPrompt)) {
-                        sink.next("错误：不能使用空提示词运行代理");
+                    } catch (Exception e) {
+                        state = AgentState.ERROR;
+                        log.error("error executing agent", e);
+                        sink.next("执行错误：" + e.getMessage());
                         sink.complete();
-                        return;
+                    } finally {
+                        this.cleanup();
                     }
-                    // 2、执行，更改状态
-                    this.state = AgentState.RUNNING;
-                    messageList.add(new UserMessage(userPrompt));
-                    // 3、执行循环
-                    for (int i = 0; i < maxSteps && state != AgentState.FINISHED; i++) {
-                        int stepNumber = i + 1;
-                        currentStep = stepNumber;
-                        log.info("Executing step {}/{}", stepNumber, maxSteps);
-                        String stepResult = step();
-                        String result = "Step " + stepNumber + ": " + stepResult;
-                        sink.next(result);
-                    }
-                    // 检查是否超出步骤限制
-                    if (currentStep >= maxSteps) {
-                        state = AgentState.FINISHED;
-                        sink.next("执行结束：达到最大步骤（" + maxSteps + "）");
-                    }
-                    sink.complete();
-                } catch (Exception e) {
-                    state = AgentState.ERROR;
-                    log.error("error executing agent", e);
-                    sink.next("执行错误：" + e.getMessage());
-                    sink.complete();
-                } finally {
-                    this.cleanup();
                 }
             });
         }, FluxSink.OverflowStrategy.BUFFER);

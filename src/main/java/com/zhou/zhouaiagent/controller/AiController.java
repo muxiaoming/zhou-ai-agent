@@ -2,6 +2,7 @@ package com.zhou.zhouaiagent.controller;
 
 import com.zhou.zhouaiagent.agent.ZhouManus;
 import com.zhou.zhouaiagent.app.LoveApp;
+import com.zhou.zhouaiagent.config.otel.OtelContextUtils;
 import com.zhou.zhouaiagent.mcp.DynamicToolCallbackProvider;
 import com.zhou.zhouaiagent.rag.AgenticRagService;
 import jakarta.annotation.Resource;
@@ -13,6 +14,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
+
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
@@ -56,15 +60,28 @@ public class AiController {
     @GetMapping("/love_app/rag")
     public SseEmitter doChatWithAgenticRag(String message, String chatId) {
         SseEmitter sseEmitter = new SseEmitter(180000L);
+        // 捕获当前 OTel Context（HTTP 请求线程的 Trace），传递到异步线程
+        Context otelContext = Context.current();
+        // 使用 OtelContextUtils.commonPool() 避免占用默认 ForkJoinPool 导致线程饥饿
         CompletableFuture.runAsync(() -> {
-            try {
-                String answer = agenticRagService.query(message, chatId);
-                sseEmitter.send(answer);
-                sseEmitter.complete();
-            } catch (Exception e) {
-                sseEmitter.completeWithError(e);
+            try (Scope ignored = otelContext.makeCurrent()) {
+                // 包裹整个 RAG 流程为根 Span，chatId 内所有 query 共享同一 TraceId
+                try {
+                    OtelContextUtils.withSpan("rag.chat." + (chatId != null ? chatId : "anonymous"), () -> {
+                        try {
+                            String answer = agenticRagService.query(message, chatId);
+                            sseEmitter.send(answer);
+                            sseEmitter.complete();
+                        } catch (Exception e) {
+                            sseEmitter.completeWithError(e);
+                        }
+                    });
+                } catch (Exception e) {
+                    // withSpan 本身失败（如 tracer 异常），确保 SseEmitter 仍然被关闭
+                    sseEmitter.completeWithError(e);
+                }
             }
-        });
+        }, OtelContextUtils.commonPool());
         return sseEmitter;
     }
 

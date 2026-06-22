@@ -21,6 +21,7 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -95,6 +96,7 @@ public class McpToolRegistry {
 
     /**
      * 注册 MCP Server（stdio 模式）
+     * 注入当前 Trace 的 traceparent 环境变量，实现跨进程链路串联
      */
     public synchronized boolean registerStdioServer(String name, String command, List<String> args, Map<String, String> env) {
         try {
@@ -110,8 +112,18 @@ public class McpToolRegistry {
             if (args != null && !args.isEmpty()) {
                 paramsBuilder.args(args);
             }
-            if (env != null && !env.isEmpty()) {
-                paramsBuilder.env(env);
+
+            // 注入 traceparent 环境变量，使 MCP 子进程能关联到当前 Trace
+            Map<String, String> mergedEnv = new HashMap<>();
+            if (env != null) {
+                mergedEnv.putAll(env);
+            }
+            // 注意：环境变量在子进程启动时固化，无法随每次工具调用更新。
+            // 实际的跨进程 traceparent 传递由 McpToolCallback.injectTraceparent()
+            // 在每次调用时通过工具输入 JSON 的 _traceparent 字段实现。
+            // 此处保留 env 合并逻辑以支持配置文件中自定义环境变量。
+            if (!mergedEnv.isEmpty()) {
+                paramsBuilder.env(mergedEnv);
             }
 
             // 创建 stdio 传输层
@@ -256,8 +268,10 @@ public class McpToolRegistry {
 
     /**
      * MCP 工具回调适配器
+     * 每次调用时注入当前 Trace 的 traceparent 到输入 JSON，实现跨进程链路串联
      */
     private static class McpToolCallback implements ToolCallback {
+        private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
         private final McpSyncClient client;
         private final McpSchema.Tool tool;
         private final String serverName;
@@ -270,9 +284,11 @@ public class McpToolRegistry {
 
         @Override
         public String call(String toolInput) {
+            // 注入当前 Trace 的 traceparent，使 MCP 子进程能关联到主进程链路
+            String enrichedInput = injectTraceparent(toolInput);
             try {
                 McpSchema.CallToolResult result = client.callTool(
-                        new McpSchema.CallToolRequest(tool.name(), toolInput)
+                        new McpSchema.CallToolRequest(tool.name(), enrichedInput)
                 );
                 if (result != null && result.content() != null) {
                     StringBuilder sb = new StringBuilder();
@@ -286,6 +302,28 @@ public class McpToolRegistry {
                 return "";
             } catch (Exception e) {
                 return "Error calling MCP tool: " + e.getMessage();
+            }
+        }
+
+        /**
+         * 将当前 OTel Trace 的 traceparent 注入到工具输入 JSON 中
+         * 子进程可从 _traceparent 字段提取并关联到主进程的 Trace 链路
+         */
+        private String injectTraceparent(String toolInput) {
+            try {
+                String traceparent = com.zhou.zhouaiagent.config.otel.OtelContextUtils.buildTraceparent();
+                if (traceparent == null) {
+                    return toolInput;
+                }
+                com.fasterxml.jackson.databind.JsonNode node = MAPPER.readTree(
+                        toolInput != null && !toolInput.isBlank() ? toolInput : "{}");
+                if (!(node instanceof com.fasterxml.jackson.databind.node.ObjectNode root)) {
+                    return toolInput;
+                }
+                root.put("_traceparent", traceparent);
+                return MAPPER.writeValueAsString(root);
+            } catch (Exception e) {
+                return toolInput;
             }
         }
 

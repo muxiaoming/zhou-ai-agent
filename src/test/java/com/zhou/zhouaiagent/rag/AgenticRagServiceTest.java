@@ -1,5 +1,6 @@
 package com.zhou.zhouaiagent.rag;
 
+import com.zhou.zhouaiagent.config.otel.OtelContextUtils;
 import com.zhou.zhouaiagent.memory.JdbcChatMemoryRepository;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Assertions;
@@ -71,15 +72,22 @@ class AgenticRagServiceTest {
         // 使用相同的 chatId 进行多轮对话
         String chatId = "multi-turn-test-" + System.currentTimeMillis();
 
-        // 第一轮：询问婚后关系问题
-        String answer1 = agenticRagService.query("婚后夫妻关系不亲密怎么办？", chatId);
-        Assertions.assertNotNull(answer1);
-        Assertions.assertFalse(answer1.isBlank());
+        // 用单个根 Span 包裹整个会话，确保两轮 query 共享同一 TraceId
+        final String[] answer1Holder = {null};
+        final String[] answer2Holder = {null};
+        OtelContextUtils.withSpan("rag.test.multi-turn", () -> {
+            // 第一轮：询问婚后关系问题
+            answer1Holder[0] = agenticRagService.query("婚后夫妻关系不亲密怎么办？", chatId);
+            Assertions.assertNotNull(answer1Holder[0]);
+            Assertions.assertFalse(answer1Holder[0].isBlank());
 
-        // 第二轮：继续追问（应该能记住第一轮的对话）
-        String answer2 = agenticRagService.query("你能再详细说说沟通技巧吗？", chatId);
-        Assertions.assertNotNull(answer2);
-        Assertions.assertFalse(answer2.isBlank());
+            // 第二轮：继续追问（应该能记住第一轮的对话）
+            answer2Holder[0] = agenticRagService.query("你能再详细说说沟通技巧吗？", chatId);
+            Assertions.assertNotNull(answer2Holder[0]);
+            Assertions.assertFalse(answer2Holder[0].isBlank());
+        });
+        String answer1 = answer1Holder[0];
+        String answer2 = answer2Holder[0];
 
         // 验证对话历史被保存到了数据库
         List<Message> conversationHistory = chatMemoryRepository.findByConversationId(chatId);

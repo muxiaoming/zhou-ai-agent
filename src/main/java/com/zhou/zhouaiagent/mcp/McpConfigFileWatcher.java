@@ -1,5 +1,6 @@
 package com.zhou.zhouaiagent.mcp;
 
+import com.zhou.zhouaiagent.config.otel.OtelContextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -30,11 +31,14 @@ public class McpConfigFileWatcher {
     private static final Logger log = LoggerFactory.getLogger(McpConfigFileWatcher.class);
 
     private final McpToolRegistry mcpToolRegistry;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "mcp-config-watcher");
-        t.setDaemon(true);
-        return t;
-    });
+    // 用 OtelContextUtils.wrap 包装，确保异步线程自动继承提交线程的 OTel Context
+    private final ExecutorService executor = OtelContextUtils.wrap(
+            Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "mcp-config-watcher");
+                t.setDaemon(true);
+                return t;
+            })
+    );
     private final AtomicBoolean running = new AtomicBoolean(false);
     private WatchService watchService;
 
@@ -59,13 +63,17 @@ public class McpConfigFileWatcher {
             log.info("Started watching MCP config file in directory: {}", configDir.toAbsolutePath());
 
             // 异步加载初始 MCP Server 配置，避免阻塞启动
-            CompletableFuture.runAsync(() -> {
-                try {
-                    mcpToolRegistry.refreshFromConfigFile();
-                } catch (Exception e) {
-                    log.warn("Failed to load initial MCP server config", e);
-                }
-            });
+            // 使用 OtelContextUtils.commonPool() 确保 OTel Context 传播，避免占用默认 ForkJoinPool
+            CompletableFuture.runAsync(
+                    OtelContextUtils.wrap(() -> {
+                        try {
+                            mcpToolRegistry.refreshFromConfigFile();
+                        } catch (Exception e) {
+                            log.warn("Failed to load initial MCP server config", e);
+                        }
+                    }),
+                    OtelContextUtils.commonPool()
+            );
         } catch (IOException e) {
             log.error("Failed to start MCP config file watcher", e);
         }
@@ -96,7 +104,8 @@ public class McpConfigFileWatcher {
                             log.info("MCP config file changed, refreshing...");
                             // 延迟 500ms 避免文件写入未完成
                             Thread.sleep(500);
-                            mcpToolRegistry.refreshFromConfigFile();
+                            OtelContextUtils.withSpan("mcp.config.refresh",
+                                    () -> mcpToolRegistry.refreshFromConfigFile());
                         }
                     }
                 }

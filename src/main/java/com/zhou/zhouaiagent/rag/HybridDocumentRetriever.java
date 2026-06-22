@@ -149,7 +149,7 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         private VectorStore vectorStore;
         private JdbcTemplate jdbcTemplate;
         private double similarityThreshold = 0.5;
-        private int topK = 5;
+        private int topK = 3;
 
         public Builder vectorStore(VectorStore vectorStore) {
             this.vectorStore = vectorStore;

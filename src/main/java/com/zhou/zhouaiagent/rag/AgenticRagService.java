@@ -1,6 +1,7 @@
 package com.zhou.zhouaiagent.rag;
 
 import com.zhou.zhouaiagent.memory.JdbcChatMemoryRepository;
+import com.zhou.zhouaiagent.config.otel.OtelContextUtils;
 import com.zhou.zhouaiagent.rag.model.RetrievalEvaluation;
 import com.zhou.zhouaiagent.rag.model.RouteDecision;
 import lombok.extern.slf4j.Slf4j;
@@ -66,7 +67,7 @@ public class AgenticRagService {
                 .vectorStore(vectorStore)
                 .jdbcTemplate(jdbcTemplate)
                 .similarityThreshold(0.5)
-                .topK(5)
+                .topK(3)
                 .build();
 
         this.queryTransformer = RewriteQueryTransformer.builder()
@@ -82,6 +83,17 @@ public class AgenticRagService {
      * @return 回答内容
      */
     public String query(String query, String chatId) {
+        // 创建父 Span 包裹整个 RAG 流程，所有子步骤（LLM调用、检索、MCP工具）自动成为子 Span
+        // 解决 ChatModelCompletionObservationHandler 无父 Span 时各自创建根 Trace 的问题
+        // withSpan 外层不加 try-catch：如果 OTel 基础设施异常，直接抛出让调用方处理
+        // （Controller 已有 catch → sseEmitter.completeWithError，Test 会 fail-fast）
+        return OtelContextUtils.withSpan("agentic.rag.query", () -> doQuery(query, chatId));
+    }
+
+    /**
+     * 实际 RAG 查询逻辑（被 query() 的父 Span 包裹，保持原有业务逻辑完全不变）
+     */
+    private String doQuery(String query, String chatId) {
         // 参数验证与降级处理
         boolean useMemory = chatId != null && !chatId.isBlank();
         if (!useMemory) {
@@ -268,16 +280,30 @@ public class AgenticRagService {
      */
     private String buildContext(List<Document> documents) {
         StringBuilder context = new StringBuilder();
-        context.append("以下是相关的参考资料：\n\n");
+        context.append("以下是相关的参考资料（请在回答中标注引用来源，格式为 [1] [2] 等）：\n\n");
         for (int i = 0; i < documents.size(); i++) {
             Document doc = documents.get(i);
             String text = doc.getText();
             if (text != null && text.length() > 500) {
                 text = text.substring(0, 500) + "...";
             }
-            context.append(i + 1).append(". ").append(text).append("\n\n");
+            String filename = (String) doc.getMetadata().get("filename");
+            String status = (String) doc.getMetadata().get("status");
+            context.append("[").append(i + 1).append("] 来源: ").append(filename);
+            if (status != null) {
+                context.append("（").append(status).append("）");
+            }
+            context.append("\n").append(text).append("\n\n");
         }
-        context.append("请基于以上参考资料回答用户问题。如果资料不足以回答，请直接根据你的理解回答。");
+        context.append("请基于以上参考资料回答用户问题。如果资料不足以回答，请直接根据你的理解回答。\n");
+        context.append("回答格式要求：\n");
+        context.append("1. 在回答正文的相关陈述后标注引用来源（如 [1] [2]）\n");
+        context.append("2. 回答末尾另起一行，输出「参考资料」小节，格式如下：\n");
+        context.append("   参考资料：\n");
+        context.append("   [1] 《文件名》关键词摘要\n");
+        context.append("   [2] 《文件名》关键词摘要\n");
+        context.append("   （只列出实际引用的资料，未引用的不要列出）\n");
+        context.append("3. 如果资料不足以回答，请直接根据你的理解回答，并在末尾说明「此回答未参考知识库」。");
         return context.toString();
     }
 

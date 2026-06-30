@@ -19,6 +19,11 @@ const router = createRouter({
       name: 'manus',
       component: () => import('../views/ManusChatView.vue'),
     },
+    {
+      path: '/decision-engine',
+      name: 'decision-engine',
+      component: () => import('../views/DecisionEngineView.vue'),
+    },
   ],
 })
 

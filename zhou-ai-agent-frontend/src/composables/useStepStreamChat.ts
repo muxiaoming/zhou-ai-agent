@@ -11,7 +11,8 @@ export function splitBySteps(text: string): string[] {
   if (first === -1) return [text]
   if (first > 0) {
     const preamble = text.slice(0, first).trimEnd()
-    const steps = text.slice(first).split(STEP_SPLIT).filter((s) => s.length > 0)
+    const steps = text.slice(first).split(STEP_SPLIT)
+      .filter((s) => s.length > 0)
     return preamble ? [preamble, ...steps] : steps
   }
   return text.split(STEP_SPLIT).filter((s) => s.length > 0)
@@ -19,6 +20,7 @@ export function splitBySteps(text: string): string[] {
 
 /**
  * 将 SSE 流式文本按 Step 拆成多条 assistant 气泡（每个 Step 一条）。
+ * Step N: 前缀会保留在内容中，由前端美化为标签样式。
  */
 export function useStepStreamChat() {
   const messages = shallowRef<ChatMessage[]>([])

@@ -36,6 +36,9 @@ public class ToolCallAgent extends ReActAgent {
     // 保存工具调用信息的响应结果（要调用那些工具）
     private ChatResponse toolCallChatResponse;
 
+    // 本次思考的模型回复文本（供 step() 输出）
+    private String lastThinkResult;
+
     // 工具调用管理者
     private final ToolCallingManager toolCallingManager;
 
@@ -95,24 +98,24 @@ public class ToolCallAgent extends ReActAgent {
             // 获取要调用的工具列表
             List<AssistantMessage.ToolCall> toolCallList = assistantMessage.getToolCalls();
             // 输出提示信息
-            String result = assistantMessage.getText();
-            log.info(getName() + "的思考：" + result);
-            log.info(getName() + "选择了 " + toolCallList.size() + " 个工具来使用");
-            String toolCallInfo = toolCallList.stream()
-                    .map(toolCall -> String.format("工具名称：%s，参数：%s", toolCall.name(), toolCall.arguments()))
-                    .collect(Collectors.joining("\n"));
-            log.info(toolCallInfo);
-            // 如果不需要调用工具，返回 false
+            this.lastThinkResult = assistantMessage.getText();
+
+            log.info("{}的思考：{}", getName(), assistantMessage.getText());
+            log.info("{}选择了 {} 个工具来使用", getName(), toolCallList.size());
+
             if (toolCallList.isEmpty()) {
                 // 只有不调用工具时，才需要手动记录助手消息
+                // 模型直接回答，无需工具 → 任务完成
                 getMessageList().add(assistantMessage);
                 return false;
             } else {
                 // 需要调用工具时，无需记录助手消息，因为调用工具时会自动记录
+                // 需要调用工具（助手消息会在 act() 中由框架自动记录）
+                toolCallList.forEach(tc -> log.info("工具名称：{}，参数：{}", tc.name(), tc.arguments()));
                 return true;
             }
         } catch (Exception e) {
-            log.error("{}的思考过程遇到了问题：{}", getName(), e.getMessage());
+            log.error("{}的思考过程遇到了问题：{}", getName(), e.getMessage(), e);
             getMessageList().add(new AssistantMessage("处理时遇到了错误：" + e.getMessage()));
             return false;
         }
@@ -142,11 +145,183 @@ public class ToolCallAgent extends ReActAgent {
         if (terminateToolCalled) {
             // 任务结束，更改状态
             setState(AgentState.FINISHED);
+            return "";
         }
-        String results = toolResponseMessage.getResponses().stream()
-                .map(response -> "工具 " + response.name() + " 返回的结果：" + response.responseData())
-                .collect(Collectors.joining("\n"));
-        log.info(results);
-        return results;
+        // 格式化每个工具的执行结果
+        StringBuilder results = new StringBuilder();
+        for (var response : toolResponseMessage.getResponses()) {
+            String toolName = response.name();
+            String responseData = response.responseData();
+            if (responseData == null || responseData.isBlank() || toolName.equals("doTerminate")) continue;
+
+            String formatted = formatToolResult(toolName, responseData);
+            if (!formatted.isBlank()) {
+                results.append(formatted).append("\n");
+            }
+        }
+        return results.toString().trim();
+    }
+
+    /**
+     * 格式化工具执行结果，使其更易读
+     */
+    private String formatToolResult(String toolName, String result) {
+        String baseUrl = "http://localhost:8123/api";
+
+        // 地图搜索 - 格式化 POI 结果（限制 10 个）
+        if (toolName.contains("amap") && (toolName.contains("search") || toolName.contains("around"))) {
+            return formatMapSearchResult(result, 10);
+        }
+
+        // 图片搜索 - 工具已自己格式化
+        if (toolName.contains("searchImage")) {
+            return result + "\n";
+        }
+
+        // PDF 生成 - 显示可下载链接
+        if (toolName.contains("generatePDF")) {
+            return formatPdfResult(result, baseUrl);
+        }
+
+        // 网页搜索 - 工具已自己格式化，确保格式正确
+        if (toolName.contains("searchWeb") || toolName.contains("scrapeWebPage")) {
+            // 确保结果末尾有换行符
+            String formattedResult = result;
+            if (!formattedResult.endsWith("\n")) {
+                formattedResult = formattedResult + "\n";
+            }
+            return formattedResult;
+        }
+
+        // 文件操作
+        if (toolName.contains("readFile") || toolName.contains("writeFile")) {
+            return "✅ 文件操作完成\n";
+        }
+
+        // 终端命令 - 显示执行完成状态和输出
+        if (toolName.contains("executeTerminalCommand")) {
+            String truncated = result.length() > 300 ? result.substring(0, 300) + "..." : result;
+            return "✅ 命令执行完成\n\n```\n" + truncated + "\n```\n";
+        }
+
+        // 下载资源
+        if (toolName.contains("downloadResource")) {
+            return "✅ 文件下载完成\n";
+        }
+
+        // 其他情况，美化 JSON 输出
+        return beautifyJson(result);
+    }
+
+    /**
+     * 格式化 PDF 生成结果
+     */
+    private String formatPdfResult(String result, String baseUrl) {
+        // 提取路径，从 "to: " 后面获取
+        String path = result.replaceAll(".*to: ", "").trim();
+        path = path.replaceAll("[\"']", "");  // 去掉引号
+
+        // 提取文件名（从完整路径中提取）
+        String fileName = path.substring(path.lastIndexOf("/") + 1);
+
+        // 创建下载 URL
+        String downloadUrl = baseUrl + "/download?file=" + fileName;
+
+        return String.format(
+            "✅ PDF 已生成\n\n" +
+            "📥 **下载文件：** [点击下载 PDF](%s)",
+            downloadUrl
+        );
+    }
+
+    /**
+     * 格式化地图搜索结果（POI），限制返回数量
+     */
+    private String formatMapSearchResult(String result, int maxResults) {
+        try {
+            StringBuilder sb = new StringBuilder("**📍 搜索到的地点：**\n\n");
+            String[] lines = result.split("\n");
+            String currentName = null;
+            String currentAddress = null;
+            String currentLng = null;
+            String currentLat = null;
+            int count = 0;
+
+            for (String line : lines) {
+                if (count >= maxResults) break;
+
+                if (line.contains("\"name\"")) {
+                    currentName = extractJsonValue(line);
+                } else if (line.contains("\"address\"")) {
+                    currentAddress = extractJsonValue(line);
+                } else if (line.contains("\"location\"")) {
+                    // 提取坐标信息（格式：lng,lat）
+                    String location = extractJsonValue(line);
+                    if (location != null && location.contains(",")) {
+                        String[] coords = location.split(",");
+                        currentLng = coords[0].trim();
+                        currentLat = coords[1].trim();
+                    }
+                }
+
+                // 当收集到名称和地址时，输出一条结果
+                if (currentName != null && currentAddress != null) {
+                    count++;
+                    // 格式化输出，包含坐标
+                    sb.append(String.format(
+                        "**%d. %s**\n" +
+                        "   📍 %s\n",
+                        count, currentName, currentAddress
+                    ));
+
+                    // 添加坐标信息（JSON格式）
+                    if (currentLng != null && currentLat != null) {
+                        sb.append(String.format("   📐 坐标：`{\"lng\": %s, \"lat\": %s}`\n", currentLng, currentLat));
+                    }
+                    sb.append("\n");
+
+                    // 重置变量
+                    currentName = null;
+                    currentAddress = null;
+                    currentLng = null;
+                    currentLat = null;
+                }
+            }
+
+            if (count == 0) {
+                sb.append("暂无搜索结果\n\n");
+            } else if (count >= maxResults) {
+                sb.append(String.format("*...还有更多地点*\n\n"));
+            }
+
+            return sb.toString();
+        } catch (Exception e) {
+            return "**📍 搜索结果：**\n\n" + result.substring(0, Math.min(300, result.length())) + "...\n\n";
+        }
+    }
+
+    /**
+     * 从 JSON 行中提取值
+     */
+    private String extractJsonValue(String line) {
+        int colonIndex = line.indexOf(':');
+        if (colonIndex == -1) return null;
+        String value = line.substring(colonIndex + 1).trim();
+        value = value.replaceAll("[\",]", "").trim();
+        return value.isEmpty() ? null : value;
+    }
+
+    /**
+     * 美化 JSON 输出
+     */
+    private String beautifyJson(String json) {
+        if (!json.contains("{") && !json.contains("[")) {
+            return json;
+        }
+        try {
+            return "```json\n" + json.substring(0, Math.min(1000, json.length())) + "\n```\n";
+        } catch (Exception e) {
+            return json;
+        }
     }
 }

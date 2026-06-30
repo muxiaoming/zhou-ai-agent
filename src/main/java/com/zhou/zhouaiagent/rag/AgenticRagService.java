@@ -43,6 +43,7 @@ public class AgenticRagService {
     private static final int MAX_RETRIEVAL_ROUNDS = 2;
 
     private final ChatClient chatClient;
+    private final ChatClient chatClientNoMemory; // 不带记忆的 client，用于内部 RAG 步骤
     private final HybridDocumentRetriever hybridDocumentRetriever;
     private final QueryTransformer queryTransformer;
 
@@ -56,12 +57,15 @@ public class AgenticRagService {
                 .maxMessages(20)
                 .build();
 
+        // 带记忆的 client（用于最终回答）
         this.chatClient = ChatClient.builder(chatModel)
-                // 配置会话记忆 Advisor
                 .defaultAdvisors(
                         MessageChatMemoryAdvisor.builder(chatMemory).build()
                 )
                 .build();
+
+        // 不带记忆的 client（用于路由、评估等内部步骤）
+        this.chatClientNoMemory = ChatClient.builder(chatModel).build();
 
         this.hybridDocumentRetriever = HybridDocumentRetriever.builder()
                 .vectorStore(vectorStore)
@@ -209,7 +213,7 @@ public class AgenticRagService {
      */
     private RouteDecision decideRoute(String query) {
         try {
-            return chatClient.prompt()
+            return chatClientNoMemory.prompt()
                     .user("""
                             你是一个查询路由器。根据用户问题判断是否需要从知识库检索。
                             知识库主题：恋爱心理、感情问题、婚姻关系、单身社交、沟通技巧。
@@ -250,7 +254,7 @@ public class AgenticRagService {
      */
     private RetrievalEvaluation evaluateRetrieval(String query, String context) {
         try {
-            return chatClient.prompt()
+            return chatClientNoMemory.prompt()
                     .user("""
                             你是一个检索质量评估器。判断以下检索结果是否足以回答用户问题。
                             \

@@ -2,6 +2,7 @@ package com.zhou.zhouaiagent.mcp;
 
 import cn.hutool.json.JSON;
 import cn.hutool.json.JSONObject;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.client.McpClient;
@@ -329,11 +330,15 @@ public class McpToolRegistry {
 
         @Override
         public ToolDefinition getToolDefinition() {
-            return ToolDefinition.builder()
-                    .name(serverName + "_" + tool.name())
-                    .description(tool.description() != null ? tool.description() : tool.name())
-                    .inputSchema(tool.inputSchema() != null ? tool.inputSchema().toString() : "{}")
-                    .build();
+            try {
+                return ToolDefinition.builder()
+                        .name(serverName + "_" + tool.name())
+                        .description(tool.description() != null ? tool.description() : tool.name())
+                        .inputSchema(tool.inputSchema() != null ? MAPPER.writeValueAsString(tool.inputSchema()) : "{}")
+                        .build();
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }

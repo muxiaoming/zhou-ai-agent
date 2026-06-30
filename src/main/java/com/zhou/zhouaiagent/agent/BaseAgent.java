@@ -129,12 +129,12 @@ public abstract class BaseAgent {
                 // 1、基础校验
                 try {
                     if (this.state != AgentState.IDLE) {
-                        sseEmitter.send("错误：无法从状态运行代理：" + this.state);
+                        sseEmitter.send("错误：无法从状态运行代理：" + this.state, org.springframework.http.MediaType.TEXT_PLAIN);
                         sseEmitter.complete();
                         return;
                     }
                     if (StrUtil.isBlank(userPrompt)) {
-                        sseEmitter.send("错误：不能使用空提示词运行代理");
+                        sseEmitter.send("错误：不能使用空提示词运行代理", org.springframework.http.MediaType.TEXT_PLAIN);
                         sseEmitter.complete();
                         return;
                     }
@@ -157,14 +157,14 @@ public abstract class BaseAgent {
                         String stepResult = step();
                         String result = "Step " + stepNumber + ": " + stepResult;
                         results.add(result);
-                        // 输出当前每一步的结果到 SSE
-                        sseEmitter.send(result);
+                        // 输出当前每一步的结果到 SSE（纯文本格式）
+                        sseEmitter.send(result, org.springframework.http.MediaType.TEXT_PLAIN);
                     }
                     // 检查是否超出步骤限制
                     if (currentStep >= maxSteps) {
                         state = AgentState.FINISHED;
                         results.add("Terminated: Reached max steps (" + maxSteps + ")");
-                        sseEmitter.send("执行结束：达到最大步骤（" + maxSteps + "）");
+                        sseEmitter.send("执行结束：达到最大步骤（" + maxSteps + "）", org.springframework.http.MediaType.TEXT_PLAIN);
                     }
                     // 正常完成
                     sseEmitter.complete();
@@ -172,7 +172,7 @@ public abstract class BaseAgent {
                     state = AgentState.ERROR;
                     log.error("error executing agent", e);
                     try {
-                        sseEmitter.send("执行错误：" + e.getMessage());
+                        sseEmitter.send("执行错误：" + e.getMessage(), org.springframework.http.MediaType.TEXT_PLAIN);
                         sseEmitter.complete();
                     } catch (IOException ex) {
                         sseEmitter.completeWithError(ex);

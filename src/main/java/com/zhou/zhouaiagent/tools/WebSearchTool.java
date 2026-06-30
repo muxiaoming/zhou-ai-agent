@@ -39,15 +39,44 @@ public class WebSearchTool {
             JSONObject jsonObject = JSONUtil.parseObj(response);
             // 提取 organic_results 部分
             JSONArray organicResults = jsonObject.getJSONArray("organic_results");
-            List<Object> objects = organicResults.subList(0, 5);
-            // 拼接搜索结果为字符串
-            String result = objects.stream().map(obj -> {
-                JSONObject tmpJSONObject = (JSONObject) obj;
-                return tmpJSONObject.toString();
-            }).collect(Collectors.joining(","));
-            return result;
+            if (JSONUtil.isNull(organicResults)) {
+                return "搜索失败, 未搜索到内容。";
+            }
+            List<Object> objects = organicResults.subList(0, Math.min(5, organicResults.size()));
+
+            // 格式化搜索结果
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < objects.size(); i++) {
+                JSONObject item = (JSONObject) objects.get(i);
+                String title = item.getStr("title");
+                String link = item.getStr("link");
+                String displayedLink = item.getStr("displayed_link");
+                String snippet = item.getStr("snippet");
+                String thumbnail = item.getStr("thumbnail");
+
+                // 添加标题和链接
+                sb.append(String.format("**%d. [%s](%s)**\n", i + 1, title, link));
+                if (displayedLink != null) {
+                    sb.append(String.format("   📎 %s\n", displayedLink));
+                }
+
+                // 如果有缩略图，显示图片（使用更小的尺寸）
+                if (thumbnail != null && !thumbnail.isEmpty()) {
+                    // 确保使用小尺寸缩略图
+                    String thumbUrl = thumbnail.contains("?") ? thumbnail + "&w=100&h=100" : thumbnail + "?w=100&h=100";
+                    sb.append(String.format("   ![缩略图](%s)\n", thumbUrl));
+                }
+
+                // 添加摘要
+                if (snippet != null && !snippet.isEmpty()) {
+                    String shortSnippet = snippet.length() > 100 ? snippet.substring(0, 100) + "..." : snippet;
+                    sb.append(String.format("   %s\n\n", shortSnippet));
+                }
+            }
+
+            return sb.toString();
         } catch (Exception e) {
-            return "Error searching Baidu: " + e.getMessage();
+            return "❌ 搜索失败：" + e.getMessage();
         }
     }
 }

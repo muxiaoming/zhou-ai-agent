@@ -43,10 +43,17 @@ public abstract class ReActAgent extends BaseAgent {
             // 先思考
             boolean shouldAct = think();
             if (!shouldAct) {
+                // 模型直接回答 → 设置完成状态并返回模型回复
+                this.setState(com.zhou.zhouaiagent.agent.model.AgentState.FINISHED);
+                if (this instanceof ToolCallAgent tca && tca.getLastThinkResult() != null) {
+                    return tca.getLastThinkResult();
+                }
                 return "思考完成 - 无需行动";
             }
             // 再行动
-            return act();
+            // 模型需要调用工具 → 展示工具执行结果（已格式化）
+            String actResult = act();
+            return actResult;
         } catch (Exception e) {
             // 记录异常日志
             log.error("error executing ReAct agent", e);

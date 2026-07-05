@@ -1,26 +1,21 @@
 # Zhou AI Agent
 
-> 基于 Spring AI + Vue 3 的全栈 AI 智能体应用，集成 RAG、工具调用、MCP 协议、多 Agent 投资决策引擎及自主规划能力
+> 自研 AI Agent 框架 · ReAct 模式 + Agentic RAG + MCP 协议扩展 + 多 Agent 工作流 (StateGraph) 编排
 
 ## 项目简介
 
-Zhou AI Agent 是一个端到端的 AI 智能体平台，涵盖后端服务、前端界面和 MCP 扩展服务三个组件。项目演示了从基础 AI 对话到高级智能体能力的完整演进路径：对话记忆 → 结构化输出 → RAG 知识增强 → 工具调用 → MCP 协议扩展 → 自主规划执行的 ReAct 智能体。
+全栈 AI 智能体系统，自底向上实现了 Agent 完整的技术栈：**对话记忆 → 结构化输出 → RAG 知识增强 → 工具调用 → MCP 协议 → ReAct 智能体 → 多 Agent Graph 编排**。所有 Agent 核心机制（循环控制、工具执行、状态管理、流式推送）均自行实现，不依赖框架内置自动化。
 
-核心应用包括：
-- **AI 情感大师** — 多场景情感对话
-- **ZhouManus** — 自主规划执行的全能型 AI 智能体
-- **投资决策引擎** — 7 节点 Multi-Agent Graph 流式投资决策（独立服务 agent-decision-engine）
+## 核心能力
 
-
-## 功能特性
-
-- **AI 情感大师** — 多轮对话、流式输出、RAG 知识增强、结构化输出
-- **ZhouManus 智能体** — 自主规划执行的 ReAct 模式 Agent，支持内置工具 + MCP 扩展工具，可自动终止
-- **RAG 系统** — Agentic RAG（LLM 驱动路由 + 向量+关键词混合检索 + 多轮反思循环 + 兜底处理），支持查询改写与文档过滤
-- **MCP 协议集成** — 动态工具发现与热插拔，支持 REST API 和配置文件热加载双模式
-- **记忆持久化** — 基于 JDBC + PostgreSQL 的会话记忆持久化，支持滑动窗口
-- **可观测性** — Langfuse + Micrometer Tracing + OpenTelemetry，追踪 LLM 调用链路
-- **SSE 流式响应** — Flux<String> 线程安全流式输出，兼容 SseEmitter / ServerSentEvent
+| 维度 | 能力                   | 技术实现                                                                                       |
+|------|----------------------|--------------------------------------------------------------------------------------------|
+| **Agent 框架** | 自研 ReAct Agent 框架    | 四层继承 (BaseAgent → ReActAgent → ToolCallAgent → ZhouManus)，状态机 (IDLE→RUNNING→FINISHED/ERROR)，手动工具调用控制，Terminate 主动终止 + maxSteps 兜底 |
+| **RAG Pipeline** | Agentic RAG 检索生成     | LLM 路由决策 + 混合检索 (Hybrid Search: 向量 PGVector + 关键词 ILIKE) + 多轮反思循环 + 兜底直答                        |
+| **MCP 协议** | 运行时动态工具扩展            | 基于 MCP 协议的 SSE/stdio 双模式热插拔，WatchService 配置文件热加载，REST API 运行时注册                            |
+| **多 Agent 工作流** | Graph 有向图编排          | 基于 StateGraph 的 7 节点条件路由，Flux.concat() + Flux.defer() 实现真逐节点 SSE 推送，NonTransientAiException 降级容错 |
+| **流式架构** | 多方案同项目对比             | Flux / SseEmitter / ServerSentEvent 多种实现                              |
+| **可观测性** | 本地部署 Langfuse3 全链路追踪 | OpenTelemetry OTLP 协议原生对接，Span 级记录 Agent 思考-行动-结果全过程                                       |
 
 ## 项目结构
 
@@ -35,6 +30,8 @@ Zhou AI Agent 是一个端到端的 AI 智能体平台，涵盖后端服务、�
 **后端 Backend**
 - Java 21, Spring Boot 3.4.4, Spring AI 1.0.0
 - Spring AI Alibaba + DashScope（通义千问 Qwen）
+- **StateGraph**（多 Agent 工作流编排引擎，条件路由 + 状态管理）
+- **ReactAgent**（Alibaba Cloud Graph React 代理框架，ReAct 模式）
 - PGVector（PostgreSQL 向量数据库）
 - Knife4j / OpenAPI 3（API 文档）
 - iTextPDF, Jsoup, Hutool, Kryo

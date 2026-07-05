@@ -34,10 +34,10 @@ import { RouterLink } from 'vue-router'
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/>
               </svg>
             </span>
-            <span class="card-tag">SSE 流式</span>
+            <span class="card-tag">RAG · SSE</span>
           </div>
           <h2>AI 恋爱大师</h2>
-          <p>聊天室风格，自动生成会话 ID，SSE 实时流式对话。</p>
+          <p>Agentic RAG 对话，LLM 路由 + 混合检索 Hybird Search + 多轮反思，4 种 SSE 流式实现。</p>
           <div class="card-footer">
             <span class="card-status"><span class="status-dot"></span> 在线</span>
             <span class="card-enter">
@@ -61,10 +61,10 @@ import { RouterLink } from 'vue-router'
                 <line x1="16" y1="16" x2="16" y2="16"/>
               </svg>
             </span>
-            <span class="card-tag card-tag-alt">Agent</span>
+            <span class="card-tag card-tag-alt">ReAct · MCP</span>
           </div>
           <h2>AI 超级智能体</h2>
-          <p>对接 Manus 流式接口，具备任务拆解与工具调用能力。</p>
+          <p>自研 ReAct 四层框架，7 种内置工具 + MCP 协议动态扩展，自动终止。</p>
           <div class="card-footer">
             <span class="card-status"><span class="status-dot"></span> 在线</span>
             <span class="card-enter">
@@ -86,10 +86,10 @@ import { RouterLink } from 'vue-router'
                 <path d="M2 12l10 5 10-5"/>
               </svg>
             </span>
-            <span class="card-tag card-tag-orange">Engine</span>
+            <span class="card-tag card-tag-orange">StateGraph · Multi-Agent</span>
           </div>
-          <h2>投资决策引擎</h2>
-          <p>多模型智能决策，支持 RAG 知识检索、工具调用与工作流图。</p>
+          <h2>Multi-Agent 投资决策引擎</h2>
+          <p>7 节点 StateGraph 有向图编排，多模型智能路由 + 降级容错，逐节点 SSE 流式推送，且支持多种模型(Deepseek，OpenAI类型等)。</p>
           <div class="card-footer">
             <span class="card-status"><span class="status-dot"></span> 在线</span>
             <span class="card-enter">
@@ -104,7 +104,7 @@ import { RouterLink } from 'vue-router'
     <!-- Footer -->
     <footer class="home-footer">
       <div class="footer-line" aria-hidden="true"></div>
-      <p>Vue 3 &middot; Spring AI &middot; Langfuse &middot; SSE &middot; OpenTelemetry</p>
+      <p>Spring AI &middot; StateGraph &middot; ReAct Agent &middot; Agentic RAG &middot; MCP &middot; Langfuse &middot; SSE &middot; OpenTelemetry</p>
     </footer>
   </div>
 </template>

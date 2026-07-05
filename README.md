@@ -1,13 +1,15 @@
 # Zhou AI Agent
 
-> 基于 Spring AI + Vue 3 的全栈 AI 智能体应用，集成 RAG、工具调用、MCP 协议及自主规划能力
->
+> 基于 Spring AI + Vue 3 的全栈 AI 智能体应用，集成 RAG、工具调用、MCP 协议、多 Agent 投资决策引擎及自主规划能力
 
 ## 项目简介
 
 Zhou AI Agent 是一个端到端的 AI 智能体平台，涵盖后端服务、前端界面和 MCP 扩展服务三个组件。项目演示了从基础 AI 对话到高级智能体能力的完整演进路径：对话记忆 → 结构化输出 → RAG 知识增强 → 工具调用 → MCP 协议扩展 → 自主规划执行的 ReAct 智能体。
 
-核心亮点包括「AI 情感大师」多场景对话应用，以及「ZhouManus」拥有自主规划能力的全能型 AI 智能体，可自动拆解任务、选择工具并逐步执行。
+核心应用包括：
+- **AI 情感大师** — 多场景情感对话
+- **ZhouManus** — 自主规划执行的全能型 AI 智能体
+- **投资决策引擎** — 7 节点 Multi-Agent Graph 流式投资决策（独立服务 agent-decision-engine）
 
 
 ## 功能特性
@@ -112,6 +114,8 @@ mvn spring-boot:run
 | `/api/mcp/servers/{name}` | DELETE | 移除 MCP Server |
 | `/api/mcp/servers/refresh` | POST | 从配置文件重新加载 MCP Server |
 | `/api/mcp/servers/tools` | GET | 列出所有可用工具 |
+| `/engine/agent/decide/stream` | GET/POST | 投资决策流式接口（SSE，代理至 agent-decision-engine） |
+| `/engine/agent/health` | GET | 决策引擎健康检查 |
 | `/health` | GET | 健康检查 |
 | `/actuator` | GET | Spring Boot Actuator 端点 |
 
@@ -351,6 +355,34 @@ Flux.create(sink -> {
     });
 }, FluxSink.OverflowStrategy.BUFFER);
 ```
+
+### 投资决策引擎集成（agent-decision-engine）
+
+前端集成独立的 [agent-decision-engine](https://github.com/your-repo/agent-decision-engine) 服务，提供 7 节点 Multi-Agent Graph 流式投资决策功能。
+
+```
+┌────────────────────────────────────────────┐
+│          zhou-ai-agent (Vue 3 前端)          │
+│  DecisionEngineView.vue                     │
+│  ├── decisionEngine.ts (axios)              │
+│  ├── decisionEngine-sync.ts (fetch SSE)     │
+│  └── decisionEngine-fixed.ts (POST SSE)     │
+├────────────────────────────────────────────┤
+│  Vite 代理: /engine → localhost:8182/api    │
+├────────────────────────────────────────────┤
+│         agent-decision-engine (后端)         │
+│  MultiAgentInvestService                    │
+│  ├── IntentClassifyAgent (意图分类)          │
+│  ├── ProblemPerceptionAgent (问题感知)       │
+│  ├── KnowledgeRetrievalAgent (知识检索)      │
+│  ├── DataFetchAgent (数据获取)               │
+│  ├── ReasoningAnalysisAgent (推理分析)       │
+│  ├── DecisionGenerateAgent (决策生成)        │
+│  └── GraphScheduleAgent (汇总输出)           │
+└────────────────────────────────────────────┘
+```
+
+**决策流程**：用户输入投资需求 → 意图分类（非投资直接返回）→ 问题感知 → 知识检索（ReAct）→ 数据获取（ReAct）→ 推理分析 → 决策生成 → 汇总输出，7 个步骤通过 SSE 流式推送到前端。
 
 ## 截图
 

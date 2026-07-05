@@ -365,32 +365,12 @@ function autoResize(event: Event) {
               </select>
             </div>
 
-            <!-- 功能开关 -->
-            <div class="config-item">
-              <label class="config-label">功能开关</label>
-              <div class="config-toggles">
-                <label class="config-toggle-item">
-                  <input type="checkbox" v-model="enableRAG" />
-                  <span>知识检索 (RAG)</span>
-                </label>
-                <label class="config-toggle-item">
-                  <input type="checkbox" v-model="enableTools" />
-                  <span>工具调用</span>
-                </label>
-                <label class="config-toggle-item">
-                  <input type="checkbox" v-model="enableGraph" />
-                  <span>工作流图</span>
-                </label>
-              </div>
-            </div>
           </div>
 
           <!-- 配置预览 -->
           <div class="config-preview">
             <span class="preview-tag">模型: {{ modelName }}</span>
-            <span class="preview-tag">RAG: {{ enableRAG ? '✓' : '✗' }}</span>
-            <span class="preview-tag">工具: {{ enableTools ? '✓' : '✗' }}</span>
-            <span class="preview-tag">工作流: {{ enableGraph ? '✓' : '✗' }}</span>
+
           </div>
         </div>
       </Transition>

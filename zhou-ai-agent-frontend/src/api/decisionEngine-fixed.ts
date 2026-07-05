@@ -1,4 +1,4 @@
-// 修复 405 问题：使用 POST + RequestBody 方式
+﻿// 修复 405 问题：使用 POST + RequestBody 方式
 
 // 1. 后端保持 @PostMapping（原始方式）
 // 2. 前端使用 axios 发送 POST 请求
@@ -30,7 +30,7 @@ export async function decideInvestment(params: DecisionRequest) {
 
 // 流式投资决策（使用 fetch + ReadableStream）
 export async function* decideInvestmentStream(params: DecisionRequest) {
-  const url = new URL('/engine/investment/decide/stream', window.location.origin)
+  const url = new URL('/engine/agent/decide/stream', window.location.origin)
 
   const response = await fetch(url.toString(), {
     method: 'POST',

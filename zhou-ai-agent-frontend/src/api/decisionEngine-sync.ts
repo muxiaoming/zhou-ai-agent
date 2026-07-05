@@ -72,7 +72,7 @@ export async function streamDecideInvestment(
   }
 
   await streamSsePost(
-    '/engine/investment/decide/stream',
+    '/engine/agent/decide/stream',
     body,
     (chunk) => {
       try {

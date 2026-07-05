@@ -1,4 +1,4 @@
-import axios from 'axios'
+﻿import axios from 'axios'
 
 // 创建 agent-decision-engine 的专用 axios 实例
 // 开发环境通过 Vite 代理，生产环境直连后端
@@ -86,7 +86,7 @@ export async function decideInvestment(params: DecisionRequest): Promise<Decisio
 }
 
 export function* decideInvestmentStream(params: DecisionRequest): AsyncGenerator<StepEvent> {
-  const url = new URL('/engine/investment/decide/stream', window.location.origin)
+  const url = new URL('/engine/agent/decide/stream', window.location.origin)
   url.searchParams.append('message', params.message)
   if (params.modelName) url.searchParams.append('modelName', params.modelName)
   if (params.threadId) url.searchParams.append('threadId', params.threadId)
